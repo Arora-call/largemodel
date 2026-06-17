@@ -1,3 +1,11 @@
+/**
+ * 模块：系统监控
+ * 功能：健康检查控制器，提供服务状态探测接口
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.controller;
 
 import org.example.dto.response.ApiResponse;

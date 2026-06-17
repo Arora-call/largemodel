@@ -1,3 +1,11 @@
+/**
+ * 模块：系统管理
+ * 功能：管理员控制器，处理用户列表查询、角色/状态管理、用户删除等后台接口
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
@@ -46,7 +54,7 @@ public class AdminController {
     public ApiResponse<Void> updateUserStatus(@PathVariable Long userId,
                                                @RequestParam Integer status) {
         adminService.updateUserStatus(userId, status);
-        return ApiResponse.success("状态更新成功");
+        return ApiResponse.msg("状态更新成功");
     }
 
     /**
@@ -56,7 +64,7 @@ public class AdminController {
     public ApiResponse<Void> updateUserRole(@PathVariable Long userId,
                                              @RequestParam String role) {
         adminService.updateUserRole(userId, role);
-        return ApiResponse.success("角色更新成功");
+        return ApiResponse.msg("角色更新成功");
     }
 
     /**
@@ -66,7 +74,17 @@ public class AdminController {
     public ApiResponse<Void> deleteUser(@PathVariable Long userId,
                                          @AuthenticationPrincipal User admin) {
         adminService.deleteUser(userId, admin.getId());
-        return ApiResponse.success("用户已删除");
+        return ApiResponse.msg("用户已删除");
+    }
+
+    /**
+     * 重置用户密码
+     */
+    @PutMapping("/users/{userId}/password")
+    public ApiResponse<Void> resetUserPassword(@PathVariable Long userId,
+                                                @RequestParam String newPassword) {
+        adminService.resetUserPassword(userId, newPassword);
+        return ApiResponse.msg("密码已重置");
     }
 
     /**

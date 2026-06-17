@@ -1,3 +1,11 @@
+/**
+ * 模块：全局异常
+ * 功能：全局异常处理器，统一拦截各类异常并转换为ApiResponse格式返回
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.exception;
 
 import org.example.dto.response.ApiResponse;

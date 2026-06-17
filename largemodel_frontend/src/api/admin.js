@@ -36,6 +36,13 @@ export function deleteUser(userId) {
 }
 
 /**
+ * 重置用户密码
+ */
+export function resetUserPassword(userId, newPassword) {
+  return request.put(`/admin/users/${userId}/password`, null, { params: { newPassword } })
+}
+
+/**
  * 获取统计数据
  */
 export function getStats() {

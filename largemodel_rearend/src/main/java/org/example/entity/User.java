@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：用户实体，映射users表，包含用户名、密码、角色、状态等核心字段
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.entity;
 
 import jakarta.persistence.*;

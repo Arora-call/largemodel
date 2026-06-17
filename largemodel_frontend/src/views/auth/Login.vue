@@ -41,7 +41,8 @@
     </el-form>
 
     <div class="form-footer">
-      <span>还没有账号？</span>
+      <router-link to="/auth/forgot-password" class="link">忘记密码？</router-link>
+      <span> | 还没有账号？</span>
       <router-link to="/auth/register" class="link">立即注册</router-link>
     </div>
   </div>

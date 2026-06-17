@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：用户角色枚举，定义USER和ADMIN两种角色
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.enums;
 
 public enum UserRole {

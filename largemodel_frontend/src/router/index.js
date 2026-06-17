@@ -16,6 +16,12 @@ const routes = [
         name: 'Register',
         component: () => import('@/views/auth/Register.vue'),
         meta: { title: '注册', guest: true }
+      },
+      {
+        path: 'forgot-password',
+        name: 'ForgotPassword',
+        component: () => import('@/views/auth/ForgotPassword.vue'),
+        meta: { title: '找回密码', guest: true }
       }
     ]
   },

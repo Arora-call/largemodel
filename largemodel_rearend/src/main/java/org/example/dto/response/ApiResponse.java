@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：统一API响应体，泛型支持，提供success/error/msg等静态工厂方法
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.dto.response;
 
 import lombok.AllArgsConstructor;
@@ -29,6 +37,18 @@ public class ApiResponse<T> {
 
     public static <T> ApiResponse<T> success() {
         return success(null);
+    }
+
+    /**
+     * 仅返回消息，无数据体 —— 用于 void 返回类型
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> ApiResponse<T> msg(String message) {
+        return (ApiResponse<T>) ApiResponse.builder()
+                .code(200)
+                .message(message)
+                .timestamp(LocalDateTime.now())
+                .build();
     }
 
     public static <T> ApiResponse<T> success(String message, T data) {

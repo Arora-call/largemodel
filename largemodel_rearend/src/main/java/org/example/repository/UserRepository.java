@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：用户数据访问层，JPA自动实现，提供用户名/ID查询、存在性检查、统计等方法
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.repository;
 
 import org.example.entity.User;

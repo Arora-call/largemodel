@@ -1,7 +1,16 @@
+/**
+ * 模块：用户体系
+ * 功能：认证服务，处理用户注册（用户名查重/BCrypt加密）、登录（密码校验/JWT生成）、获取当前用户等核心业务
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.config.JwtUtil;
+import org.example.dto.request.ForgetPasswordRequest;
 import org.example.dto.request.LoginRequest;
 import org.example.dto.request.RegisterRequest;
 import org.example.dto.response.LoginResponse;
@@ -46,8 +55,9 @@ public class AuthService {
                 .role(UserRole.USER)
                 .status(UserStatus.ENABLED.getCode())
                 .deleted(false)
-                .createdBy(request.getUsername())
                 .build();
+
+        user.setCreatedBy(request.getUsername());
 
         user = userRepository.save(user);
         return UserInfoResponse.from(user);
@@ -91,5 +101,26 @@ public class AuthService {
         User user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new BusinessException("用户不存在"));
         return UserInfoResponse.from(user);
+    }
+
+    /**
+     * 找回密码：通过用户名+邮箱验证身份，验证通过后重置密码
+     */
+    @Transactional
+    public void forgetPassword(ForgetPasswordRequest request) {
+        User user = userRepository.findByUsernameAndDeletedFalse(request.getUsername())
+                .orElseThrow(() -> new BusinessException("用户名不存在"));
+
+        if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(request.getEmail().trim())) {
+            throw new BusinessException("邮箱与注册时填写的邮箱不一致");
+        }
+
+        if (!user.isEnabled()) {
+            throw new BusinessException("账户已被禁用，无法重置密码");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setUpdatedBy(user.getUsername());
+        userRepository.save(user);
     }
 }

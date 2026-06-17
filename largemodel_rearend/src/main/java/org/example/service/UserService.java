@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：个人信息服务，处理用户信息更新、密码修改、账户注销等业务
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;

@@ -20,3 +20,10 @@ export function login(data) {
 export function getCurrentUser() {
   return request.get('/auth/me')
 }
+
+/**
+ * 找回密码：用户名+邮箱验证后重置密码
+ */
+export function forgotPassword(data) {
+  return request.post('/auth/forgot-password', data)
+}

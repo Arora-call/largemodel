@@ -79,7 +79,7 @@
             {{ row.lastLoginAt ? formatDate(row.lastLoginAt) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center" fixed="right">
+        <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
             <el-button
               text
@@ -88,6 +88,14 @@
               @click="handleEditRole(row)"
             >
               改角色
+            </el-button>
+            <el-button
+              text
+              type="warning"
+              size="small"
+              @click="handleResetPwd(row)"
+            >
+              重置密码
             </el-button>
             <el-button
               text
@@ -145,13 +153,35 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 重置密码对话框 -->
+    <el-dialog
+      v-model="pwdDialogVisible"
+      title="重置密码"
+      width="400px"
+    >
+      <el-form v-if="editingUser" label-width="80px">
+        <el-form-item label="用户名">
+          <span>{{ editingUser.username }}</span>
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="newPassword" type="password" show-password placeholder="请输入新密码（至少6位）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="pwdLoading" @click="confirmResetPwd">
+          确认重置
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listUsers, updateUserStatus, updateUserRole, deleteUser } from '@/api/admin'
+import { listUsers, updateUserStatus, updateUserRole, deleteUser, resetUserPassword } from '@/api/admin'
 import { Search } from '@element-plus/icons-vue'
 
 const loading = ref(false)
@@ -171,6 +201,11 @@ const roleDialogVisible = ref(false)
 const roleLoading = ref(false)
 const editingUser = ref(null)
 const newRole = ref('USER')
+
+// 重置密码对话框
+const pwdDialogVisible = ref(false)
+const pwdLoading = ref(false)
+const newPassword = ref('')
 
 function formatDate(dateStr) {
   if (!dateStr) return ''
@@ -247,6 +282,29 @@ async function confirmEditRole() {
     // ignore
   } finally {
     roleLoading.value = false
+  }
+}
+
+function handleResetPwd(row) {
+  editingUser.value = row
+  newPassword.value = ''
+  pwdDialogVisible.value = true
+}
+
+async function confirmResetPwd() {
+  if (!newPassword.value || newPassword.value.length < 6) {
+    ElMessage.warning('密码至少6位')
+    return
+  }
+  pwdLoading.value = true
+  try {
+    await resetUserPassword(editingUser.value.id, newPassword.value)
+    ElMessage.success(`用户「${editingUser.value.username}」的密码已重置`)
+    pwdDialogVisible.value = false
+  } catch {
+    // ignore
+  } finally {
+    pwdLoading.value = false
   }
 }
 

@@ -1,3 +1,11 @@
+/**
+ * 模块：安全配置
+ * 功能：跨域配置，允许所有来源访问，支持所有HTTP方法
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.config;
 
 import org.springframework.context.annotation.Bean;

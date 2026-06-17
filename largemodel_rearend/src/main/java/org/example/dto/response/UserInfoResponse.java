@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：用户信息响应体，含from(User)静态方法从实体转换
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.dto.response;
 
 import lombok.AllArgsConstructor;

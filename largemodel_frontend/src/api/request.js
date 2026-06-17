@@ -41,10 +41,16 @@ request.interceptors.response.use(
 
       switch (status) {
         case 401:
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          router.push('/auth/login')
-          ElMessage.error('登录已过期，请重新登录')
+          // 在登录/注册页返回401 → 认证失败，显示后端错误信息
+          if (['/auth/login', '/auth/register'].includes(window.location.pathname)) {
+            ElMessage.error(data?.message || '用户名或密码错误')
+          } else {
+            // 其他页面返回401 → token已过期，清空并跳转登录
+            localStorage.removeItem('token')
+            localStorage.removeItem('user')
+            router.push('/auth/login')
+            ElMessage.error('登录已过期，请重新登录')
+          }
           break
         case 403:
           ElMessage.error('权限不足')

@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：注册请求体，包含用户名、密码、昵称、邮箱、手机号字段
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.dto.request;
 
 import jakarta.validation.constraints.NotBlank;

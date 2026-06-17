@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：个人信息控制器，处理用户信息查看/修改、密码修改、账户注销等接口
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
@@ -43,7 +51,7 @@ public class UserController {
     public ApiResponse<Void> changePassword(@AuthenticationPrincipal User user,
                                             @RequestBody UserPasswordRequest request) {
         userService.changePassword(user.getId(), request);
-        return ApiResponse.success("密码修改成功");
+        return ApiResponse.msg("密码修改成功");
     }
 
     /**
@@ -52,6 +60,6 @@ public class UserController {
     @DeleteMapping("/account")
     public ApiResponse<Void> deleteAccount(@AuthenticationPrincipal User user) {
         userService.deleteAccount(user.getId());
-        return ApiResponse.success("账户已注销");
+        return ApiResponse.msg("账户已注销");
     }
 }

@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：基础实体，提供创建时间、更新时间、创建人、更新人等审计字段
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.entity;
 
 import jakarta.persistence.Column;

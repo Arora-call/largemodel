@@ -1,7 +1,16 @@
+/**
+ * 模块：用户体系
+ * 功能：认证控制器，处理注册、登录、获取当前用户等公开接口
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.example.dto.request.ForgetPasswordRequest;
 import org.example.dto.request.LoginRequest;
 import org.example.dto.request.RegisterRequest;
 import org.example.dto.response.ApiResponse;
@@ -46,5 +55,14 @@ public class AuthController {
     public ApiResponse<UserInfoResponse> getCurrentUser(@AuthenticationPrincipal User user) {
         UserInfoResponse userInfo = authService.getCurrentUser(user.getId());
         return ApiResponse.success(userInfo);
+    }
+
+    /**
+     * 找回密码：通过用户名+邮箱验证身份后重置密码
+     */
+    @PostMapping("/forgot-password")
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgetPasswordRequest request) {
+        authService.forgetPassword(request);
+        return ApiResponse.msg("密码重置成功，请使用新密码登录");
     }
 }

@@ -1,3 +1,11 @@
+/**
+ * 模块：用户体系
+ * 功能：分页响应体，泛型支持，包含content列表和分页元数据
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.dto.response;
 
 import lombok.AllArgsConstructor;

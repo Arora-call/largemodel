@@ -1,6 +1,15 @@
+/**
+ * 模块：系统管理
+ * 功能：管理员服务，处理用户列表分页查询（动态筛选）、角色/状态管理、逻辑删除等后台业务
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.example.dto.response.PageResponse;
 import org.example.dto.response.UserInfoResponse;
 import org.example.entity.User;
@@ -26,6 +35,7 @@ import java.util.List;
 public class AdminService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * 分页查询用户列表
@@ -138,6 +148,18 @@ public class AdminService {
 
         user.setDeleted(true);
         user.setStatus(UserStatus.DISABLED.getCode());
+        userRepository.save(user);
+    }
+
+    /**
+     * 管理员重置用户密码
+     */
+    @Transactional
+    public void resetUserPassword(Long userId, String newPassword) {
+        User user = userRepository.findByIdAndDeletedFalse(userId)
+                .orElseThrow(() -> new BusinessException("用户不存在"));
+
+        user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
     }
 

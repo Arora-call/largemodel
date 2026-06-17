@@ -1,3 +1,11 @@
+/**
+ * 模块：安全配置
+ * 功能：JWT认证过滤器，从请求头提取Token并注入SecurityContext
+ * 作者：yx
+ * 创建时间：2026-06-17
+ * 修改记录：
+ *  2026-06-17 初始化代码
+ */
 package org.example.config;
 
 import io.jsonwebtoken.Claims;
