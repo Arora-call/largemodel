@@ -29,6 +29,17 @@ jwt:
   secret: YTJkZjQzNTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZA==
   expiration: 86400000  # 24 hours in milliseconds
 
+# LangChain4j - OpenAI Configuration
+# 中国大陆环境需将 base-url 改为代理地址，如：
+#   https://api.openai-proxy.com/v1
+#   https://你的代理域名/v1
+langchain4j:
+  openai:
+    base-url: https://open.bigmodel.cn/api/paas/v4   # 代理地址
+    model-name: glm-4.5-air
+    temperature: 0.7
+    max-tokens: 4096
+
 logging:
   level:
     org.example: DEBUG

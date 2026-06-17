@@ -37,6 +37,12 @@ const routes = [
         meta: { title: '工作台', requiresAuth: true }
       },
       {
+        path: 'ai/generate',
+        name: 'AiGenerate',
+        component: () => import('@/views/ai/Generate.vue'),
+        meta: { title: 'AI代码生成', requiresAuth: true }
+      },
+      {
         path: 'user/profile',
         name: 'UserProfile',
         component: () => import('@/views/user/Profile.vue'),

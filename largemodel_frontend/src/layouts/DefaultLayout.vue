@@ -21,6 +21,11 @@
           <template #title>工作台</template>
         </el-menu-item>
 
+        <el-menu-item index="/ai/generate">
+          <el-icon><MagicStick /></el-icon>
+          <template #title>AI 代码生成</template>
+        </el-menu-item>
+
         <el-menu-item index="/user/profile">
           <el-icon><User /></el-icon>
           <template #title>个人中心</template>
@@ -80,7 +85,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
   Odometer, User, UserFilled, Setting,
-  Fold, Expand, SwitchButton
+  Fold, Expand, SwitchButton, MagicStick
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

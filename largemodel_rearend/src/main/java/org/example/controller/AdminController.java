@@ -9,19 +9,19 @@
 package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.example.annotation.AuthCheck;
 import org.example.dto.response.ApiResponse;
 import org.example.dto.response.PageResponse;
 import org.example.dto.response.UserInfoResponse;
 import org.example.entity.User;
 import org.example.service.AdminService;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@AuthCheck("ADMIN")
 public class AdminController {
 
     private final AdminService adminService;
