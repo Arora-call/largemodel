@@ -37,6 +37,10 @@ public class Application {
     @Builder.Default
     private String type = "NATIVE";
 
+    /** 编程语言: java / vue / python / html 等 */
+    @Column(length = 50)
+    private String language;
+
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
@@ -50,6 +54,10 @@ public class Application {
 
     @Column(name = "config_json", columnDefinition = "JSON")
     private String configJson;
+
+    /** 封面图URL */
+    @Column(name = "cover_image", length = 500)
+    private String coverImage;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

@@ -18,6 +18,7 @@ import org.example.service.UserService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/user")
@@ -61,5 +62,15 @@ public class UserController {
     public ApiResponse<Void> deleteAccount(@AuthenticationPrincipal User user) {
         userService.deleteAccount(user.getId());
         return ApiResponse.msg("账户已注销");
+    }
+
+    /**
+     * 上传头像
+     */
+    @PostMapping("/avatar")
+    public ApiResponse<String> uploadAvatar(@AuthenticationPrincipal User user,
+                                             @RequestParam("file") MultipartFile file) {
+        String avatarUrl = userService.uploadAvatar(user.getId(), file);
+        return ApiResponse.success("头像上传成功", avatarUrl);
     }
 }

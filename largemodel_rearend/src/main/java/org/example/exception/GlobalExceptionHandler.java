@@ -21,6 +21,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.io.IOException;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -65,6 +66,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(e.getMessage()));
+    }
+
+    /** SSE 流式推送时客户端断开 → 响应已提交，静默处理 */
+    @ExceptionHandler(IOException.class)
+    public void handleIOException(IOException e) {
+        // 客户端断开连接是正常行为，debug 级别记录即可
+        log.debug("客户端连接中断: {}", e.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

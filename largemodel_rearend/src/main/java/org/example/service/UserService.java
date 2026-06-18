@@ -16,9 +16,16 @@ import org.example.entity.User;
 import org.example.enums.UserStatus;
 import org.example.exception.BusinessException;
 import org.example.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +33,9 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.upload.avatar-dir:uploads/avatars}")
+    private String avatarDir;
 
     /**
      * 获取用户信息
@@ -92,5 +102,63 @@ public class UserService {
         User user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new BusinessException("用户不存在"));
         return user;
+    }
+
+    /**
+     * 上传用户头像
+     */
+    @Transactional
+    public String uploadAvatar(Long userId, MultipartFile file) {
+        User user = findActiveUser(userId);
+
+        // 校验文件非空
+        if (file.isEmpty()) {
+            throw new BusinessException("文件不能为空");
+        }
+
+        // 校验文件类型
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("只允许上传图片文件");
+        }
+
+        // 校验文件大小（2MB）
+        if (file.getSize() > 2 * 1024 * 1024) {
+            throw new BusinessException("文件大小不能超过2MB");
+        }
+
+        // 生成唯一文件名
+        String originalFilename = file.getOriginalFilename();
+        String extension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String filename = UUID.randomUUID().toString() + extension;
+
+        // 确保目录存在
+        Path uploadPath = Path.of(avatarDir);
+        try {
+            Files.createDirectories(uploadPath);
+        } catch (IOException e) {
+            throw new BusinessException("创建上传目录失败");
+        }
+
+        // 保存文件
+        Path filePath = uploadPath.resolve(filename);
+        try {
+            file.transferTo(filePath.toFile());
+        } catch (IOException e) {
+            throw new BusinessException("文件保存失败");
+        }
+
+        // 构建可访问的 URL
+        String avatarUrl = "/uploads/avatars/" + filename;
+
+        // 更新用户头像字段
+        user.setAvatar(avatarUrl);
+        user.setUpdatedBy(user.getUsername());
+        userRepository.save(user);
+
+        return avatarUrl;
     }
 }

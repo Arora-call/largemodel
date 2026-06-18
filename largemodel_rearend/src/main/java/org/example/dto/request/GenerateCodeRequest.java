@@ -24,4 +24,7 @@ public class GenerateCodeRequest {
 
     /** 语言: java / python / vue 等 */
     private String language = "java";
+
+    /** 用户原始提问（不含代码上下文），用于保存对话记录 */
+    private String originalPrompt;
 }

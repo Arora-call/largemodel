@@ -35,10 +35,30 @@ jwt:
 #   https://你的代理域名/v1
 langchain4j:
   openai:
-    base-url: https://open.bigmodel.cn/api/paas/v4   # 代理地址
-    model-name: glm-4.5-air
+    base-url: https://api.deepseek.com   # 代理地址
+    model-name: deepseek-v4-flash
     temperature: 0.7
     max-tokens: 4096
+
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 2
+
+# Conversation cache TTL (seconds)
+conversation:
+  cache-ttl: 3600
+
+# Application config
+app:
+  upload:
+    base-dir: uploads
+    avatar-dir: uploads/avatars
 
 logging:
   level:

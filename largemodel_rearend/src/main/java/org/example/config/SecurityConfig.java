@@ -11,6 +11,7 @@ package org.example.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import jakarta.servlet.DispatcherType;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -37,10 +38,14 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE async dispatch 放行，避免 response committed 后重复鉴权
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
-                        // Swagger / docs (if added later)
+                        // Static uploads (avatars etc.)
+                        .requestMatchers("/uploads/**").permitAll()
+                        // Swagger / docs
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // All other endpoints require authentication
                         .anyRequest().authenticated()

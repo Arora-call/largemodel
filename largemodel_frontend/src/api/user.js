@@ -27,3 +27,17 @@ export function changePassword(data) {
 export function deleteAccount() {
   return request.delete('/user/account')
 }
+
+/**
+ * 上传头像
+ * @param {File} file - 图片文件
+ */
+export function uploadAvatar(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/user/avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}

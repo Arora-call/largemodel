@@ -2,138 +2,68 @@
   <div class="dashboard">
     <h2 class="page-title">工作台</h2>
 
-    <el-row :gutter="20">
-      <el-col :span="8">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-info">
-              <div class="stat-label">欢迎回来</div>
-              <div class="stat-value">{{ authStore.nickname || authStore.username }}</div>
-            </div>
-            <el-icon class="stat-icon" :size="48" color="#409eff"><UserFilled /></el-icon>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="8">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-info">
-              <div class="stat-label">角色</div>
-              <div class="stat-value">{{ authStore.user?.roleDisplayName || authStore.userRole }}</div>
-            </div>
-            <el-icon class="stat-icon" :size="48" color="#67c23a"><Opportunity /></el-icon>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="8">
-        <el-card v-if="authStore.isAdmin" shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-info">
-              <div class="stat-label">用户总数</div>
-              <div class="stat-value">{{ stats.totalUsers ?? '-' }}</div>
-            </div>
-            <el-icon class="stat-icon" :size="48" color="#e6a23c"><User /></el-icon>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-card class="welcome-card" shadow="hover">
-      <template #header>
-        <span>快速开始</span>
-      </template>
-      <div class="welcome-content">
-        <p>欢迎使用大模型代码应用生成平台！</p>
-        <ul>
-          <li>完善个人信息 - 前往 <router-link to="/user/profile">个人中心</router-link></li>
-          <li v-if="authStore.isAdmin">管理用户 - 前往 <router-link to="/admin/users">用户管理</router-link></li>
-        </ul>
+    <div class="stats-grid">
+      <div class="stat-card card-welcome">
+        <div class="stat-num">{{ authStore.nickname || authStore.username }}</div>
+        <div class="stat-label">欢迎回来</div>
       </div>
-    </el-card>
+      <div class="stat-card card-projects">
+        <div class="stat-num">{{ stats.totalApps ?? '-' }}</div>
+        <div class="stat-label">我的项目</div>
+      </div>
+      <div class="stat-card card-role">
+        <div class="stat-num">{{ authStore.user?.roleDisplayName || authStore.userRole }}</div>
+        <div class="stat-label">当前角色</div>
+      </div>
+      <div v-if="authStore.isAdmin" class="stat-card card-users">
+        <div class="stat-num">{{ stats.totalUsers ?? '-' }}</div>
+        <div class="stat-label">用户总数</div>
+      </div>
+    </div>
+
+    <div class="quick-row">
+      <el-button type="primary" size="large" @click="$router.push('/ai/generate')">
+        ✨ 生成代码
+      </el-button>
+      <el-button size="large" @click="$router.push('/app/list')">
+        📁 我的应用
+      </el-button>
+      <el-button size="large" @click="$router.push('/project/create')">
+        🏗️ 创建项目
+      </el-button>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { getStats } from '@/api/admin'
-import { UserFilled, User, Opportunity } from '@element-plus/icons-vue'
+import { getDashboardStats } from '@/api/app'
 
 const authStore = useAuthStore()
 const stats = ref({})
 
 onMounted(async () => {
-  if (authStore.isAdmin) {
-    try {
-      const res = await getStats()
-      stats.value = res.data || {}
-    } catch {
-      // ignore
-    }
-  }
+  try {
+    const res = await getDashboardStats()
+    stats.value = res.data || {}
+  } catch { stats.value = {} }
 })
 </script>
 
 <style scoped>
-.dashboard {
-  max-width: 1200px;
-}
+.dashboard { max-width: 900px; margin:0 auto }
+.page-title { font-size: 24px; font-weight: 700; margin: 0 0 24px; color: #1f2937 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0 0 20px;
-  color: #1a1a2e;
-}
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px }
+.stat-card { padding: 20px 22px; border-radius: 14px; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.08) }
+.card-welcome { background: linear-gradient(135deg, #667eea, #764ba2) }
+.card-projects { background: linear-gradient(135deg, #f093fb, #f5576c) }
+.card-role { background: linear-gradient(135deg, #4facfe, #00f2fe) }
+.card-users { background: linear-gradient(135deg, #43e97b, #38f9d7) }
+.stat-num { font-size: 28px; font-weight: 700; margin-bottom: 4px }
+.stat-label { font-size: 13px; opacity: 0.85 }
 
-.stat-card {
-  margin-bottom: 20px;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #999;
-  margin-bottom: 4px;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-}
-
-.welcome-card {
-  margin-top: 8px;
-}
-
-.welcome-content p {
-  margin-top: 0;
-  color: #666;
-}
-
-.welcome-content ul {
-  padding-left: 20px;
-}
-
-.welcome-content li {
-  margin-bottom: 8px;
-  color: #666;
-}
-
-.welcome-content a {
-  color: #409eff;
-  text-decoration: none;
-}
-
-.welcome-content a:hover {
-  text-decoration: underline;
-}
+.quick-row { display: flex; gap: 12px; flex-wrap: wrap }
+.quick-row .el-button { border-radius: 10px; padding: 14px 24px; font-size: 15px; font-weight: 500 }
 </style>

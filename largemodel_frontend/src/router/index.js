@@ -49,6 +49,18 @@ const routes = [
         meta: { title: '个人中心', requiresAuth: true }
       },
       {
+        path: 'app/list',
+        name: 'AppList',
+        component: () => import('@/views/app/AppList.vue'),
+        meta: { title: '我的应用', requiresAuth: true }
+      },
+      {
+        path: 'project/create',
+        name: 'ProjectCreate',
+        component: () => import('@/views/project/Create.vue'),
+        meta: { title: '创建项目', requiresAuth: true }
+      },
+      {
         path: 'admin/users',
         name: 'AdminUsers',
         component: () => import('@/views/admin/Users.vue'),

@@ -19,16 +19,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #667eea 100%);
+  background: radial-gradient(ellipse at 30% 20%, #2a1a4a 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, #1a2a5a 0%, transparent 60%),
+              linear-gradient(135deg, #0a0d1a 0%, #12183a 50%, #0d1225 100%);
 }
 
 .auth-container {
-  width: 420px;
-  padding: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 430px;
+  padding: 44px 40px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(24px);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.06);
 }
 
 .auth-header {

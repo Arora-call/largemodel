@@ -12,7 +12,10 @@
     "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.18.0",
     "element-plus": "^2.14.2",
+    "esbuild": "^0.28.1",
+    "monaco-editor": "^0.52.2",
     "pinia": "^3.0.4",
+    "vite-plugin-monaco-editor": "^1.1.0",
     "vue": "^3.5.32",
     "vue-router": "^4.6.4"
   },
