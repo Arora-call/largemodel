@@ -128,6 +128,33 @@ public class AiCodeGenService {
             allCode.append("// ===== ").append(path).append(" =====\n").append(code);
         }
 
+        // 兜底0：有 [FILE] 标记但 ``` 块缺失/为空 — 按 [FILE] 切分，尝试提取裸代码
+        if (files.isEmpty() && raw.contains("[FILE]")) {
+            String[] sections = raw.split("(?i)\\[FILE\\]\\s*");
+            for (String section : sections) {
+                section = section.trim();
+                if (section.isEmpty()) continue;
+                int nl = section.indexOf('\n');
+                String path = nl > 0 ? section.substring(0, nl).trim() : section.trim();
+                // 跳过非文件路径的段（如 [PROJECT] / [DESC] 开头的前导段）
+                if (path.contains("[") || path.isEmpty()) continue;
+                String rest = nl > 0 ? section.substring(nl + 1).trim() : "";
+                // 尝试去掉 ``` 包裹（如果有的话）
+                if (rest.startsWith("```")) {
+                    int end = rest.indexOf('\n');
+                    rest = end > 0 ? rest.substring(end + 1) : rest;
+                }
+                if (rest.endsWith("```")) {
+                    rest = rest.substring(0, rest.length() - 3).trim();
+                }
+                if (rest.isEmpty()) continue; // 跳过空文件
+                String lang = detectLang(rest);
+                files.add(Map.of("path", path, "language", lang, "content", rest));
+                if (!allCode.isEmpty()) allCode.append("\n\n");
+                allCode.append("// ===== ").append(path).append(" =====\n").append(rest);
+            }
+        }
+
         // 兜底1：没匹配到 → 按标准 ``` 块提取
         if (files.isEmpty()) {
             java.util.regex.Matcher blockMatcher = java.util.regex.Pattern.compile(

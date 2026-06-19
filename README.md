@@ -1,6 +1,6 @@
 # 大模型代码应用生成平台
 
-> 作者：yx | 更新时间：2026-06-18
+> 作者：yx | 更新时间：2026-06-19（项目编辑模式 / 元素拾取 + AI 对话修改 / 预览拖拽 / 项目持久化 / 下载修复）
 
 ---
 
@@ -35,6 +35,7 @@
 | 前端框架 | Vue 3 (Composition API) | 3.5.x |
 | UI 库 | Element Plus | 2.14.x |
 | 代码编辑器 | Monaco Editor | 0.52.x |
+| 沙箱预览 | sandpack-vue3 (Sandpack) + 内联 SFC 编译 (Vue 3 CDN) | 3.1.x |
 | 状态管理 | Pinia | 3.x |
 | 构建工具 | Vite | 8.x |
 | 包管理 | npm | — |
@@ -45,16 +46,18 @@
 
 ```
 ✅ 用户体系       注册/登录/JWT/找回密码/个人信息/注销/管理员后台
-✅ AI 代码生成     SSE 流式/智能解析/多轮对话/中断续写/代码折叠/复制
-✅ 工程项目创建     真实文件系统/文件树/代码查看/前端预览/ZIP 下载
-✅ 可视化编辑       iframe 预览/元素拾取/修改模式
-✅ 应用管理        CRUD/详情弹窗/代码预览/封面图/下载
-✅ 对话持久化      MySQL 存储/Redis 会话/历史加载/自动同步
+✅ AI 代码生成     SSE 流式/纯代码输出/多轮对话/中断续写/系统指令限制/单文件元素拾取编辑
+✅ 工程项目创建     文件系统/文件树/CDN 沙箱预览/多项目切换/面板拖拽/元素拾取+AI对话修改
+✅ 可视化编辑       内联 SFC 编译 / 编辑模式元素拾取 / AI 对话修改样式 / 错误捕获+AI修复
+✅ 应用管理        CRUD/详情弹窗/代码预览/封面图/下载(fetch+blob)
+✅ 对话持久化      MySQL 存储/Redis 会话/历史加载/自动同步/项目列表不丢失
 ✅ Swagger 文档    springdoc-openapi/所有接口自动文档
 ✅ 集成测试        19 个测试用例 (Auth + User)
 ✅ 账号切换        多账号保存/切换
 ✅ 头像上传        文件上传/静态资源映射
 ✅ Monaco Editor  只读代码查看器/语法高亮
+✅ 预览拖拽        鼠标拖拽调节预览面板宽度 (280~800px)
+✅ JWT查询参数认证  下载链接支持 ?token= 查询参数认证 (JwtAuthFilter 兜底)
 ```
 
 ---
@@ -73,7 +76,7 @@
 │          │  ├─ 代码块 (Monaco Editor)          │
 │          │  │   ├─ 预览按钮 (仅前端代码)        │
 │          │  │   ├─ 复制 / 折叠                 │
-│          │  │   └─ 预览面板 (iframe 沙箱)       │
+│          │  │   └─ 预览面板 (sandpack/iframe)    │
 │          │  └─ 继续生成 (中断后)               │
 │          ├──────────────────────────────────┤
 │          │ 输入框 ← Enter发送 Shift+Enter换行  │
@@ -82,13 +85,15 @@
 
 **核心能力**:
 - SSE 流式 token 推送，实时展示 AI 生成过程
-- 智能解析：自动分离文字说明 + 代码块，识别代码语言
+- 智能解析：自动提取代码块，识别代码语言（**过滤文字说明，仅保留代码**）
 - 多轮对话：自动携带历史代码上下文，支持增量修改
 - 中断续写：ESC 终止，点击"继续生成"续写
-- Markdown 渲染：标题、粗体、列表、行内代码、代码块
 - 代码块独立折叠/展开，一键复制（Clipboard API + execCommand 兜底）
-- 前端代码 (Vue/HTML) 支持 iframe 实时预览 + 元素拾取编辑
-- 页面离开校验、Enter 发送防抖、输入框自动聚焦
+- 前端单文件 (Vue/HTML) 支持 iframe 实时预览 + 元素拾取编辑修改
+- 手动保存：顶栏按钮一键保存到「我的应用」（不会自动保存）
+- **职责分离**：系统指令限制只能生成单文件/代码片段；遇到"项目"请求直接拒绝并引导至项目创建页面
+- **对话标题**：始终从第一条用户消息提取，无视后端可能回传的系统指令文本
+- **对话类型隔离**：`listConversations({ type: 'NATIVE' })` 仅加载代码生成类对话；客户端二次过滤：逐出 `type !== 'NATIVE'` 及系统指令标题条目，确保项目对话不会出现在代码生成页
 
 ### 3.2 SSE 数据流
 
@@ -123,71 +128,173 @@
 **路由**: `/project/create`
 
 ```
-┌──────────────────────────────────────────────────────┐
-│ 顶栏：项目概述 | [保存项目] [下载 ZIP]                  │
-├──────────┬────────────────────────┬──────────────────┤
-│ 文件树   │ 代码查看 (Monaco)       │ 预览 (前端项目)    │
-│ 240px    │ flex:1                 │ 420px            │
-│          │                        │                  │
-│ 📂 src/  │ ┌────────────────────┐ │ ┌──────────────┐ │
-│  ├App.vue│ │ <template>         │ │ │  iframe      │ │
-│  ├main.js│ │   <DataTable>      │ │ │  实时渲染     │ │
-│  └data.js│ │ </template>        │ │ │              │ │
-│ 📄 pkg   │ └────────────────────┘ │ └──────────────┘ │
-│ 📄 vite  │                        │ [预览] [编辑]     │
-│ 📄 index │                        │                  │
-└──────────┴────────────────────────┴──────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ 顶栏：[+ 新建项目] [保存项目] [下载 ZIP]                            │
+├──────────┬────────────────────────┬──────────────────────────────┤
+│ 项目列表 │ 代码查看 (Monaco)       │ CDN 沙箱预览 (可拖拽调宽度)     │
+│ + 文件树 │ ← 可拖拽 →             │ ← 可拖拽 → 280~800px         │
+│ 240px    │ flex:1                 │                              │
+│          │                        │ ┌──────────────────────────┐ │
+│ 📋 项目1  │ ┌────────────────────┐ │ │ 📦 项目预览   [✏️ 编辑]  │ │
+│ 📋 项目2  │ │ <template>         │ │ ├────────────────────────┤ │
+│ 📂 src/  │ │   <Calculator>     │ │ │  已选: button .btn      │ │
+│  ├App.vue│ │ </template>        │ │ │  点击元素开始编辑        │ │
+│  └main.js│ └────────────────────┘ │ │          (iframe)        │ │
+│          │                        │ │ ├────────────────────────┤ │
+│          │                        │ │ │ 描述修改要求...  [➤ 修改]│ │
+│          │                        │ │ └──────────────────────────┘ │
+└──────────┴────────────────────────┴──────────────────────────────┘
 ```
 
 ### 4.2 工作流程
 
 ```
-1. 用户输入需求 → AI 流式生成 → 解析 [PROJECT] + [FILE] 标记
-2. 后端创建真实目录: uploads/projects/project_{id}/
-   ├── package.json
-   ├── src/App.vue
-   ├── src/main.js
-   └── ...
-3. 前端 GET /api/projects/{id}/tree → 显示文件树
-4. 点击文件 → GET /api/projects/{id}/file?path=... → 显示代码
-5. 前端项目 → 读取 HTML/App.vue → iframe 预览
-6. 下载 → GET /api/projects/{id}/download → ZIP
-7. 保存 → POST /api/projects/{id}/save → applications 表
+1. 用户输入需求 → 后端 PromptTemplateService 构建 [PROJECT]/[FILE] 格式系统指令
+2. LLM 流式返回 → 后端 parseProjectResponse() 多层解析:
+   Layer 1: [PROJECT] 标签提取项目类型
+   Layer 2: [DESC] 提取项目描述
+   Layer 3: [FILE] path + ``` 代码块提取每个文件
+   兜底0: [FILE] 标记存在但 ``` 块缺失 → 按 [FILE] 切分提取裸代码
+   兜底1: 标准 ``` 代码块提取(兼容 // File: 注释)
+   兜底2: 整个响应作为 output.txt
+3. 后端创建真实目录: uploads/projects/project_{id}/
+4. 前端 GET /api/projects/{id}/tree → 显示文件树
+5. 点击文件 → GET /api/projects/{id}/file?path=... → Monaco 显示代码
+6. 前端项目 → 批量加载所有文件 → SandboxPreview (CDN 内联 SFC 编译) 预览
+7. 下载 → fetch + Authorization header → blob 下载
+8. 保存 → POST /api/projects/{id}/save → applications 表
 ```
 
-### 4.3 项目存储
+### 4.3 编辑模式（项目级 AI 对话修改）
+
+- 点击预览工具栏 **「✏️ 编辑」** 进入编辑模式 → iframe 重新挂载（注入元素选择器）
+- **元素拾取**：鼠标悬浮红框高亮 → 点击绿框选中 → `postMessage` 回传 tag/id/class/text
+- **AI 修改输入栏**始终可见 → 输入修改要求 → Enter 发送
+- 所有项目文件作为上下文拼接 `// ===== path =====` 格式 → 调用 `POST /api/ai/modify/stream`
+- AI 返回修改后代码 → `parseAiFiles()` 解析多文件 → 更新本地文件 → 预览即时刷新
+- **错误捕获**：CDN 预览中的 `showErr()` 同时 `postMessage` 错误到父窗口 → 显示 **🤖 AI 修复** 按钮
+- ESC 取消修改，退出编辑模式自动清理状态
+
+### 4.4 多项目切换与持久化
+
+- 左侧项目列表加载后端 `listConversations({ type: 'ENGINEERING' })` — 刷新/切换页面不丢失
+- 点击项目 → `switchProject(id)` → 重新加载文件树 + 预览
+- **「+ 新建项目」**按钮（右上角蓝色高亮）→ 清空当前内容，开始新对话
+- 生成完成后自动加入项目列表
+
+### 4.5 预览面板拖拽
+
+- 代码区 ←→ 预览区之间可拖拽分隔条 → 鼠标按住拖动调节预览宽度 (280px ~ 800px)
+- `startResize()` — mousedown/mousemove/mouseup 实现
+
+### 4.6 项目存储
 
 | 存储位置 | 内容 |
 |---------|------|
 | **磁盘** `uploads/projects/project_{id}/` | 真实项目文件 (App.vue, package.json 等) |
-| **MySQL** `applications` 表 | 项目元数据 (名称、类型、文件列表 JSON) |
+| **MySQL** `conversations` 表 | 对话记录 (关联用户，type=ENGINEERING) |
+| **MySQL** `applications` 表 | 保存后的项目元数据 (名称、类型、文件列表 JSON) |
+| **MySQL** `messages` 表 | 用户与 AI 的消息历史 |
 
-### 4.4 API
+### 4.7 API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/projects/generate` | SSE 流式生成项目 |
 | GET | `/api/projects/{id}/tree` | 获取文件树 |
 | GET | `/api/projects/{id}/file?path=` | 读取单个文件 |
-| GET | `/api/projects/{id}/download` | 下载 ZIP |
+| GET | `/api/projects/{id}/download` | 下载 ZIP (fetch+blob) |
 | POST | `/api/projects/{id}/save` | 保存到应用库 |
+| POST | `/api/ai/modify/stream` | AI 对话修改项目代码 |
 
 ---
 
 ## 五、可视化编辑 + 预览
 
-### 5.1 iframe 预览
+### 5.1 sandpack 沙箱预览
 
-- 前端代码 (Vue/HTML) 支持实时预览
+项目预览采用 `sandpack-vue3`（基于 CodeSandbox Sandpack），并根据项目类型自动选择运行模式：
+
+**CDN 模式（Vue 项目默认）**:
+- 检测到 `.vue` 多文件项目时自动启用，使用 `<iframe srcdoc>` 直接渲染（绕过 Sandpack 外部脚本限制）
+- 调用 `buildVueCDNHtml()`（`src/utils/sandboxCDN.js`）生成自包含 HTML：
+  - 正则解析 `<template>` / `<script setup>` / `<style>`
+  - 移除 import 语句（Vue API 从 CDN 全局解构获取，30+ API 全覆盖）
+  - 逐行扫描 `const/let/var/function` 声明并生成 `setup()` return 语句
+  - 支持多声明（`const a=1,b=2`）、解构（`{x,y}`）、箭头函数、async 函数
+  - 组件依赖拓扑排序（BFS），确保子组件先于父组件定义
+- 仅依赖 Vue 3 CDN（`unpkg.com`），无需额外外部库
+- 绕过 Sandpack `vite-vue` 模板中 Vite → Rollup/esbuild 原生二进制依赖链
+
+**vite-vue 模式（回退）**:
+- 手动指定 `template="vite-vue"` 或设置 `useCDN="false"` 时使用
+- 在 CodeSandbox Nodebox 中运行完整 Vite 构建器（需原生二进制，部分环境可能失败）
+
+**`SandboxPreview.vue`** — 可复用沙箱预览组件，Props：
+| Prop | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| files | Object | {} | 文件映射 `{ 'src/App.vue': 'code...' }` |
+| template | String | '' | 手动指定模板，为空时自动检测 |
+| customSetup | Object | {} | 额外 Sandpack 设置（依赖等） |
+| readOnly | Boolean | true | 编辑器只读 |
+| showEditor | Boolean | true | 显示代码编辑器面板 |
+| height | String | '100%' | 容器高度 |
+| useCDN | Boolean | true | Vue 项目使用 CDN 模式（避免原生二进制问题） |
+| editMode | Boolean | false | 编辑模式：注入元素选择器 + postMessage |
+
+- **模板自动检测** — 有 `.vue` + CDN 模式 → `static`，否则 `vite-vue`；纯 `.html` → `vanilla`
+- **Events**: `@element-selected(payload)` — 元素被点击选中；`@preview-error(payload)` — 预览渲染错误
+- **路径规范化** — 自动剥离公共顶层目录（`calculator/src/App.vue` → `/src/App.vue`）
+- **依赖自动检测** — 扫描 import 自动添加 `element-plus` / `vue-router` / `pinia` / `axios` / `echarts`
+- **延迟挂载** — `nextTick` 后挂载 sandpack，避免容器尺寸为 0 时初始化失败
+- **错误恢复** — 全局监听 shell 错误，显示重试按钮
+- **按钮隐藏** — 屏蔽 Open in CodeSandbox（需认证，匿名用户报错）
+- **深色主题** — `theme="dark"` 匹配应用整体暗色 UI
+- **强制重挂载** — 文件变化时 `sandpackKey++` 触发全新挂载，防止 shell ID 残留
+
+### 5.2 AI 响应多文件解析
+
+`Generate.vue` 中的 `parseAiFiles()` 函数自动解析 AI 响应中的多文件项目结构：
+
+```
+AI 生成格式:
+// File: src/App.vue
+```vue
+<template>...</template>
+<script setup>...</script>
+```
+
+// File: src/main.js
+```javascript
+import { createApp } from 'vue'
+import App from './App.vue'
+createApp(App).mount('#app')
+```
+```
+
+解析结果 → `{ 'src/App.vue': '...', 'src/main.js': '...' }` → 传入 `<SandboxPreview>`
+
+### 5.3 单文件 iframe 预览（兼容保留）
+
+- 单文件代码（单个 Vue SFC 或 HTML）仍使用 iframe 预览
 - 构建完整 HTML (Vue 3 CDN + Element Plus CDN + 模板编译)
 - 沙箱隔离 (`sandbox="allow-scripts allow-same-origin"`)
 
-### 5.2 元素拾取编辑
+### 5.4 元素拾取编辑（项目级 + 单文件）
 
-- 编辑模式：鼠标悬浮高亮页面 DOM 元素 (`#__picker` 浮层)
-- 点击选中：`postMessage` 回传元素 tag/id/class/text 信息
-- 修改输入：描述修改需求 → AI 增量更新代码
-- 状态管理：清空选中、取消修改、加载状态
+**项目创建页面（CDN 模式）**:
+- 编辑模式：点击 **「✏️ 编辑」** → iframe 重新挂载，注入 `#__picker` 浮层
+- 鼠标悬浮高亮页面 DOM 元素（红框），点击选中（绿框）
+- `postMessage` 回传元素 tag/id/class/text/html 信息到父窗口
+- AI 修改输入栏始终可见 → 输入要求 → Enter → `POST /api/ai/modify/stream`
+- 所有项目文件拼接为上下文，AI 返回修改后代码 → 解析更新 → 预览即时刷新
+- CDN 预览中的渲染错误同时 `postMessage` 到父窗口 → 显示 "AI 修复" 按钮
+- ESC 取消修改
+
+**AI 代码生成页面（iframe 模式）**:
+- 单文件预览切换「预览」/「编辑」标签进入编辑模式
+- 同样的元素拾取 + AI 修改流程
+- modifyCodeStream → 替换当前代码
 
 ---
 
@@ -204,10 +311,11 @@
 - 下载按钮 (带 JWT 认证的 blob 下载)
 - 删除确认
 
-### 6.2 封面图
+### 6.2 保存方式
 
-- AI 生成完成后自动保存
-- 按语言分色: Vue→绿, Java→橙, Python→蓝, HTML→红
+- **手动保存**：顶栏「💾 保存」按钮，由用户主动触发保存到「我的应用」
+- **不会自动保存**：AI 生成/续写完成后仅保留在当前对话中，需手动保存
+- 保存时自动按语言生成封面图: Vue→绿, Java→橙, Python→蓝, HTML→红
 
 ---
 
@@ -262,6 +370,7 @@ src/
 │   └── project.js            # 工程项目
 ├── components/
 │   ├── CodeViewer.vue        # Monaco Editor 只读查看器
+│   ├── SandboxPreview.vue    # sandpack-vue3 沙箱预览组件
 │   └── project/
 │       └── FileTree.vue       # 文件树组件 (递归渲染)
 ├── layouts/
@@ -272,10 +381,12 @@ src/
 ├── stores/
 │   └── auth.js               # Pinia 状态管理
 ├── utils/
-│   └── markdown.js           # Markdown 渲染 + 复制工具
+│   ├── markdown.js           # Markdown 渲染 + 复制工具
+│   └── sandboxCDN.js         # CDN 模式 HTML 生成（内联 SFC 编译）
+├── sandpack-vue3             # 浏览器端 Vite 打包器 (沙箱依赖)
 └── views/
     ├── ai/
-    │   └── Generate.vue      # AI 代码生成 (聊天模式)
+    │   └── Generate.vue      # AI 代码生成 (聊天模式 + sandpack/iframe 预览)
     ├── app/
     │   └── AppList.vue       # 我的应用
     ├── auth/
@@ -285,7 +396,7 @@ src/
     ├── dashboard/
     │   └── Index.vue         # 工作台
     ├── project/
-    │   └── Create.vue        # 项目创建 (三栏 IDE)
+    │   └── Create.vue        # 项目创建 (多项目切换 + 可拖拽三栏 + sandpack)
     ├── user/
     │   └── Profile.vue       # 个人中心
     └── admin/
@@ -401,9 +512,9 @@ src/main/java/org/example/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /api/conversations | 对话列表 |
+| GET | /api/conversations | 对话列表（可选 `?type=NATIVE\|ENGINEERING` 过滤） |
 | GET | /api/conversations/{id}/messages | 对话消息 |
-| DELETE | /api/conversations/{id} | 删除对话 |
+| DELETE | /api/conversations/{id} | 删除对话（同时清理项目文件） |
 | DELETE | /api/conversations/clear | 清空全部 |
 
 ### 10.7 工程项目 `/api/projects/*`（需登录）

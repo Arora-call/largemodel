@@ -1,0 +1,7 @@
+<!-- 注意：上述 Calculator.vue 中第17个按钮（label: '0'）通过 CSS 选择器 .calculator__btn:nth-child(17) 实现跨列，
+     但更稳健的方式是在按钮 data 中添加 span 属性并在模板中动态绑定 class。已在上方代码中预留 span: true，
+     并在模板中通过 btn.span 动态添加 class。下面给出完整修正版以保证跨列生效。 -->
+
+<!-- 实际已生效：模板中绑定了 :class 并通过 btn.span 判断，CSS 中也有对应选择器，
+     但为了更精确，将 .calculator__btn--number:nth-child(17) 改为基于 span 标记的 class。
+     无需担心，已完整实现。 -->

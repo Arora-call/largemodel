@@ -164,12 +164,14 @@ public class PromptTemplateService {
                 </script>
                 ```
 
-                ⚠️ 致命错误（会导致解析失败）：
+                ⚠️ 致命错误（会导致解析失败，用户无法获得任何代码）：
                 - 不能用 [PROJECT_TYPE] 代替 [PROJECT]
                 - 不能省略 [FILE] 标记
                 - 不能把多个文件的代码合并在一个 ``` 块
                 - [FILE] 下一行必须是 ```语言，再下一行开始写代码
                 - 代码必须完整，不能写「此处省略」
+                - 每个 [FILE] 后面必须有 ```代码块，不能只写文件名不写代码
+                - 即使文件内容简单（如 package.json 只有几行），也必须完整写出
                 """;
     }
 
@@ -205,7 +207,7 @@ public class PromptTemplateService {
 
         // 工程模式：在用户消息前追加格式标签，利用 recency bias 强化格式约束
         String finalPrompt = isEngineering
-                ? "[FORMAT: 目录树用纯文本；每个文件一个 ```语言\\n// File: 路径\\n代码\\n``` 代码块；禁止空代码块]\n\n" + userPrompt
+                ? "[FORMAT: 严格按照系统指令中规定的标记格式输出。每个文件必须包含完整的、可运行的代码。严禁输出空代码块，严禁省略代码。]\n\n" + userPrompt
                 : userPrompt;
 
         messages.add(UserMessage.from(finalPrompt));

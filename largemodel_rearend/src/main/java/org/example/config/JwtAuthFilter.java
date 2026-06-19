@@ -68,9 +68,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private String extractToken(HttpServletRequest request) {
+        // 优先从 Authorization 头提取
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
+        }
+        // 兜底：从 query 参数提取（用于下载链接等无法自定义 header 的场景）
+        String queryToken = request.getParameter("token");
+        if (StringUtils.hasText(queryToken)) {
+            return queryToken;
         }
         return null;
     }

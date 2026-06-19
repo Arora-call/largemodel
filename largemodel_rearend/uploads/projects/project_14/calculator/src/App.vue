@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div class="calculator-container">
     <Calculator />
   </div>
 </template>
@@ -8,13 +8,13 @@
 import Calculator from './components/Calculator.vue'
 </script>
 
-<style>
-#app {
+<style scoped>
+.calculator-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #1a1a2e;
-  margin: 0;
+  background: linear-gradient(135deg, #1e1e2f, #2a2a3e);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 </style>

@@ -53,8 +53,8 @@ export async function downloadApplication(id, fallbackName = 'code.zip') {
 }
 
 /* 对话 */
-export function listConversations() {
-  return request.get('/conversations')
+export function listConversations(params) {
+  return request.get('/conversations', { params })
 }
 
 export function getMessages(convId) {

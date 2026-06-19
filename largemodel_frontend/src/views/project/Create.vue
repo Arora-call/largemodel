@@ -7,6 +7,7 @@
         <span class="logo-text">项目创建</span>
       </div>
       <div class="header-right">
+        <button class="btn-hdr btn-new" @click="startNewProject">+ 新建项目</button>
         <button class="btn-hdr" :disabled="!files.length" @click="handleSave">
           <el-icon><FolderChecked /></el-icon> 保存项目
         </button>
@@ -18,9 +19,25 @@
 
     <!-- 主区域：三栏 -->
     <div class="proj-main">
-      <!-- 左：文件树 -->
-      <div class="panel-tree">
-        <FileTree :files="treeFiles" :active-file="activeFile" @select="selectFile" />
+      <!-- 左：项目列表 + 文件树 -->
+      <div class="panel-left">
+        <div class="project-list">
+          <div class="list-label">项目列表</div>
+          <div v-if="projects.length === 0" class="list-empty">暂无项目</div>
+          <div
+            v-for="p in projects"
+            :key="p.id"
+            class="project-item"
+            :class="{ active: p.id === projectId }"
+            @click="switchProject(p.id)"
+          >
+            <span class="project-item-name">{{ p.title || '未命名项目' }}</span>
+            <span class="project-item-count">{{ p.fileCount || 0 }} 文件</span>
+          </div>
+        </div>
+        <div class="panel-tree">
+          <FileTree :files="treeFiles" :active-file="activeFile" @select="selectFile" />
+        </div>
       </div>
 
       <!-- 中：代码 / 输入 -->
@@ -67,16 +84,70 @@
         </div>
       </div>
 
+      <!-- 拖拽调节预览宽度 -->
+      <div v-if="isFrontend && files.length" class="resize-handle" @mousedown="startResize"></div>
+
       <!-- 右：预览面板（仅前端项目） -->
-      <div v-if="isFrontend && files.length" class="panel-preview">
+      <div v-if="isFrontend && files.length" class="panel-preview" :style="{ width: previewWidth + 'px' }">
         <div class="preview-toolbar">
-          <button :class="{ active: !editMode }" @click="editMode = false">预览</button>
-          <button :class="{ active: editMode }" @click="editMode = true">编辑</button>
-          <span v-if="editMode" class="edit-hint">点击页面元素</span>
+          <span class="preview-label">📦 项目预览</span>
+          <button class="btn-edit-mode" :class="{ active: editMode }" @click="toggleEditMode">
+            {{ editMode ? '✕ 退出编辑' : '✏️ 编辑' }}
+          </button>
+          <button v-if="sandpackError" class="preview-retry" @click="retryPreview">重试</button>
         </div>
-        <iframe v-if="previewHtml" :srcdoc="previewHtml"
-          sandbox="allow-scripts allow-same-origin" class="preview-frame"></iframe>
-        <div v-else class="preview-empty">需要 index.html 或 App.vue 文件才能预览</div>
+
+        <!-- 错误提示栏 -->
+        <div v-if="previewError && !editMode" class="preview-error-banner">
+          <span class="error-msg">⚠️ {{ (previewError.message || '').substring(0, 200) }}</span>
+          <button class="btn-fix-error" @click="handleFixError">🤖 AI 修复</button>
+        </div>
+
+        <!-- 编辑模式：元素信息栏 -->
+        <div v-if="editMode" class="edit-info-bar">
+          <span v-if="selectedElement">
+            已选: <b>{{ selectedElement.tag }}</b>
+            <template v-if="selectedElement.id"> #{{ selectedElement.id }}</template>
+            <template v-if="selectedElement.cls"> .{{ selectedElement.cls }}</template>
+            <span class="el-text-preview"> — {{ (selectedElement.text || '').substring(0, 40) }}</span>
+          </span>
+          <span v-else>🖱️ 点击预览中的元素开始编辑</span>
+          <button v-if="selectedElement" class="btn-clear-sel" @click="clearSelection">取消选择</button>
+        </div>
+
+        <div v-show="previewReady" class="preview-container">
+          <SandboxPreview
+            v-if="sandpackVisible"
+            :key="sandpackKey"
+            :files="previewFiles"
+            :readOnly="false"
+            :showEditor="true"
+            :editMode="editMode"
+            height="100%"
+            @element-selected="onElementSelected"
+            @preview-error="onPreviewError"
+          />
+        </div>
+        <div v-if="!previewReady" class="preview-empty">正在加载项目文件...</div>
+        <div v-if="sandpackError && !sandpackVisible" class="preview-error">
+          <p>预览加载失败</p>
+          <button @click="retryPreview">点击重试</button>
+        </div>
+
+        <!-- 编辑模式：AI 修改输入栏 -->
+        <div v-if="editMode" class="edit-modify-bar">
+          <input
+            v-model="modifyPrompt"
+            class="modify-input"
+            :placeholder="selectedElement ? '描述修改要求，如：把按钮改成蓝色...' : '描述修改要求，或点击预览中的元素...'"
+            :disabled="modifying"
+            @keydown.enter="handleModify"
+          />
+          <button class="btn-modify" :disabled="modifying || !modifyPrompt.trim()" @click="handleModify">
+            {{ modifying ? '⏳ 修改中...' : '➤ 修改' }}
+          </button>
+          <button v-if="modifying" class="btn-stop-modify" @click="stopModifying" title="取消">✕</button>
+        </div>
       </div>
     </div>
   </div>
@@ -88,7 +159,9 @@ import { ElMessage } from 'element-plus'
 import { FolderChecked, Download } from '@element-plus/icons-vue'
 import FileTree from '@/components/project/FileTree.vue'
 import CodeViewer from '@/components/CodeViewer.vue'
-import { generateProject, getProjectTree, getProjectFile, downloadProjectZip, saveProject } from '@/api/project'
+import SandboxPreview from '@/components/SandboxPreview.vue'
+import { generateProject, getProjectTree, getProjectFile, downloadProjectZip, saveProject, modifyProjectStream } from '@/api/project'
+import { listConversations } from '@/api/app'
 
 const inputText = ref('')
 const streamText = ref('')
@@ -98,8 +171,27 @@ const activeFile = ref('')       // 当前选中文件路径
 const fileContent = ref('')      // 当前文件内容
 const projectId = ref(null)      // 后端项目 ID
 const projectType = ref('frontend')
+const projectTitle = ref('')     // 项目标题（用于保存）
+// 多项目支持
+const projects = ref([])
+
 const editMode = ref(false)
 let abortController = null
+
+// 预览状态
+const previewFiles = ref({})
+const previewReady = ref(false)
+const sandpackVisible = ref(false)
+const sandpackError = ref(false)
+const sandpackKey = ref(0)
+const previewWidth = ref(420)
+
+// 编辑模式状态
+const selectedElement = ref(null)
+const modifyPrompt = ref('')
+const modifying = ref(false)
+const previewError = ref(null)
+const editAbort = ref(null)
 
 const isFrontend = computed(() => projectType.value === 'frontend')
 const currentPath = computed(() => activeFile.value)
@@ -119,42 +211,222 @@ const examplePrompts = [
   '创建一个 HTML 商城首页，包含导航栏、轮播图和商品卡片'
 ]
 
-// 预览 HTML（从实际文件读取拼接）
-const previewHtml = ref('')
-
-async function buildPreview() {
-  if (!isFrontend.value || !projectId.value) { previewHtml.value = ''; return }
-  try {
-    // 尝试读取 index.html 或 App.vue
-    const htmlFile = files.value.find(f => f.path === 'index.html' || f.path.endsWith('.html'))
-    if (htmlFile) {
-      const res = await getProjectFile(projectId.value, htmlFile.path)
-      previewHtml.value = res.data.content
-      return
+/** 批量加载所有项目文件用于预览 */
+async function loadAllFiles() {
+  if (!isFrontend.value || !projectId.value || !files.value.length) {
+    previewFiles.value = {}
+    previewReady.value = false
+    return
+  }
+  previewReady.value = false
+  const results = await Promise.allSettled(
+    files.value.map(f => getProjectFile(projectId.value, f.path))
+  )
+  const map = {}
+  files.value.forEach((f, i) => {
+    const result = results[i]
+    if (result.status === 'fulfilled' && result.value?.data?.content) {
+      map[f.path] = result.value.data.content
     }
-    const appVue = files.value.find(f => f.path.endsWith('App.vue'))
-    if (appVue) {
-      const res = await getProjectFile(projectId.value, appVue.path)
-      previewHtml.value = buildVuePreview(res.data.content)
-      return
-    }
-    previewHtml.value = ''
-  } catch { previewHtml.value = '' }
+  })
+  previewFiles.value = map
+  previewReady.value = true
+  await nextTick()
+  sandpackVisible.value = true
+  sandpackError.value = false
 }
 
-function buildVuePreview(appCode) {
-  const tplM = appCode.match(/<template>([\s\S]*?)<\/template>/i)
-  const template = tplM ? tplM[1].trim() : appCode
-  const esc = template.replace(/`/g, '\\`').replace(/\$/g, '\\$')
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"><\/script>
-<script src="https://unpkg.com/element-plus/dist/index.full.min.js"><\/script>
-<link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-<style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;padding:16px;background:#fff}</style></head>
-<body><div id="app">${template}</div>
-<script>var {createApp}=Vue;var ElementPlus=window.ElementPlus;
-try{createApp({template:\`${esc}\`}).use(ElementPlus).mount('#app')}catch(e){document.body.innerHTML='<pre>'+e.message+'</pre>'}
-<\/script></body></html>`
+function retryPreview() {
+  sandpackError.value = false
+  sandpackVisible.value = false
+  sandpackKey.value++
+  nextTick(() => { sandpackVisible.value = true })
+}
+
+/** 拖拽调节预览宽度 */
+function startResize(e) {
+  e.preventDefault()
+  const startX = e.clientX
+  const startW = previewWidth.value
+  const onMove = (ev) => {
+    const dx = ev.clientX - startX
+    previewWidth.value = Math.max(280, Math.min(800, startW - dx))
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+/** 监听 sandpack 全局错误 */
+function onSandpackError(e) {
+  if (e.message && e.message.includes('shell')) {
+    sandpackError.value = true
+    sandpackVisible.value = false
+  }
+}
+
+// ===== 编辑模式函数 =====
+
+function toggleEditMode() {
+  editMode.value = !editMode.value
+  if (!editMode.value) {
+    selectedElement.value = null
+    modifyPrompt.value = ''
+    previewError.value = null
+  }
+}
+
+function onElementSelected(payload) {
+  selectedElement.value = payload
+  previewError.value = null
+}
+
+function onPreviewError(payload) {
+  previewError.value = payload
+}
+
+function clearSelection() {
+  selectedElement.value = null
+  modifyPrompt.value = ''
+}
+
+function handleFixError() {
+  editMode.value = true
+  if (previewError.value) {
+    modifyPrompt.value = '修复这个错误: ' + (previewError.value.message || '')
+  }
+}
+
+function stopModifying() {
+  if (editAbort.value) {
+    editAbort.value.abort()
+    editAbort.value = null
+  }
+  modifying.value = false
+}
+
+async function handleModify() {
+  if (!modifyPrompt.value.trim() || modifying.value) return
+
+  const el = selectedElement.value
+  const elementInfo = el
+    ? `<${el.tag}${el.id ? ' id=' + el.id : ''}${el.cls ? ' class=' + el.cls : ''}> 文本:"${el.text}"`
+    : ''
+
+  const promptText = modifyPrompt.value.trim()
+  modifyPrompt.value = ''
+  modifying.value = true
+  previewError.value = null
+  editAbort.value = new AbortController()
+
+  try {
+    await modifyProjectStream(
+      projectId.value,
+      { files: previewFiles.value, elementInfo, modifyPrompt: promptText },
+      {
+        signal: editAbort.value.signal,
+        onToken: () => {},
+        onDone: (result) => {
+          if (result.files && Object.keys(result.files).length > 0) {
+            for (const [path, code] of Object.entries(result.files)) {
+              if (!path) continue
+              // 找到匹配的文件路径（可能带项目目录前缀）
+              const match = files.value.find(f => f.path === path || f.path.endsWith('/' + path) || f.path.endsWith(path))
+              const actualPath = match ? match.path : path
+              previewFiles.value[actualPath] = code
+            }
+            sandpackKey.value++
+            sandpackVisible.value = true
+            if (activeFile.value && result.files[activeFile.value]) {
+              fileContent.value = result.files[activeFile.value]
+            }
+            ElMessage.success('修改完成')
+          } else if (result.code) {
+            // 单文件修改
+            if (activeFile.value) {
+              previewFiles.value[activeFile.value] = result.code
+              fileContent.value = result.code
+            }
+            sandpackKey.value++
+            sandpackVisible.value = true
+            ElMessage.success('修改完成')
+          } else {
+            ElMessage.warning('AI 未返回可识别的文件修改')
+          }
+          modifying.value = false
+          selectedElement.value = null
+          editAbort.value = null
+        },
+        onError: (err) => {
+          ElMessage.error(err.message || '修改失败')
+          modifying.value = false
+          editAbort.value = null
+        }
+      }
+    )
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      ElMessage.error(err.message || '网络错误')
+    }
+    modifying.value = false
+    editAbort.value = null
+  }
+}
+
+// Escape 取消修改
+function onKeydown(e) {
+  if (e.key === 'Escape' && modifying.value) { stopModifying() }
+}
+
+// ===== 项目管理 =====
+
+/** 从后端加载项目列表 */
+async function loadProjectsFromBackend() {
+  try {
+    const res = await listConversations({ type: 'ENGINEERING' })
+    if (res.data && res.data.length > 0) {
+      res.data.forEach(c => {
+        if (!projects.value.find(p => p.id === c.id)) {
+          projects.value.push({ id: c.id, title: c.title || '未命名项目', fileCount: 0 })
+        }
+      })
+    }
+  } catch { /* 后端不可用则跳过 */ }
+}
+
+/** 切换项目 */
+async function switchProject(id) {
+  if (id === projectId.value) return
+  projectId.value = id
+  // 清理编辑状态
+  editMode.value = false; selectedElement.value = null; modifyPrompt.value = ''
+  previewFiles.value = {}; previewReady.value = false; sandpackVisible.value = false
+  try {
+    const treeRes = await getProjectTree(id)
+    files.value = treeRes.data || []
+    if (files.value.length > 0) {
+      selectFile(files.value[0].path)
+      await loadAllFiles()
+    }
+    // 更新文件数
+    const p = projects.value.find(p => p.id === id)
+    if (p) p.fileCount = files.value.length
+  } catch { ElMessage.error('加载项目失败') }
+}
+
+/** 新建项目 */
+function startNewProject() {
+  projectId.value = null; files.value = []; activeFile.value = ''; fileContent.value = ''
+  previewFiles.value = {}; previewReady.value = false; sandpackVisible.value = false
+  editMode.value = false; selectedElement.value = null; modifyPrompt.value = ''
+  inputText.value = ''; streamText.value = ''
 }
 
 // 选择文件 → 从后端读取内容
@@ -170,7 +442,8 @@ async function selectFile(path) {
 // 生成项目
 async function handleGenerate() {
   if (!inputText.value.trim() || generating.value) return
-  const prompt = inputText.value.trim()
+  const userPrompt = inputText.value.trim()
+  projectTitle.value = userPrompt.substring(0, 50)
   inputText.value = ''
   generating.value = true; streamText.value = ''
   files.value = []; activeFile.value = ''; fileContent.value = ''
@@ -178,7 +451,7 @@ async function handleGenerate() {
 
   try {
     await generateProject(
-      { prompt, type: 'ENGINEERING', language: 'text' },
+      { prompt: userPrompt, type: 'ENGINEERING', language: 'text' },
       {
         signal: abortController.signal,
         onToken: (t) => { streamText.value += t },
@@ -194,7 +467,15 @@ async function handleGenerate() {
             files.value = treeRes.data || []
             if (files.value.length > 0) {
               selectFile(files.value[0].path)
-              await buildPreview()
+              await loadAllFiles()
+            }
+            // 添加到项目列表
+            if (!projects.value.find(p => p.id === projectId.value)) {
+              projects.value.unshift({
+                id: projectId.value,
+                title: projectTitle.value,
+                fileCount: files.value.length
+              })
             }
           } catch { ElMessage.error('获取文件树失败') }
         },
@@ -214,18 +495,32 @@ async function handleGenerate() {
 async function handleSave() {
   if (!projectId.value) return
   try {
-    await saveProject(projectId.value, prompt?.value?.substring(0, 50) || '未命名项目', projectType.value)
+    await saveProject(projectId.value, projectTitle.value || '未命名项目', projectType.value)
     ElMessage.success('已保存到「我的应用」')
   } catch { ElMessage.error('保存失败') }
 }
 
 // 下载
-function handleDownload() {
+async function handleDownload() {
   if (!projectId.value) return
-  downloadProjectZip(projectId.value)
+  try {
+    await downloadProjectZip(projectId.value)
+  } catch (e) {
+    ElMessage.error('下载失败: ' + (e.message || '无法连接'))
+  }
 }
 
-onBeforeUnmount(() => { abortController?.abort() })
+onMounted(() => {
+  loadProjectsFromBackend()
+  window.addEventListener('error', onSandpackError)
+  document.addEventListener('keydown', onKeydown)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('error', onSandpackError)
+  document.removeEventListener('keydown', onKeydown)
+  abortController?.abort()
+  editAbort.value?.abort()
+})
 </script>
 
 <style scoped>
@@ -238,10 +533,23 @@ onBeforeUnmount(() => { abortController?.abort() })
 .btn-hdr { display: flex; align-items: center; gap: 4px; padding: 6px 14px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; transition: all .15s; }
 .btn-hdr:hover:not(:disabled) { background: rgba(124,138,255,0.1); border-color: var(--accent); }
 .btn-hdr:disabled { opacity: 0.4; cursor: default; }
+.btn-hdr.btn-new { background: rgba(124,138,255,0.12); border-color: rgba(124,138,255,0.25); color: var(--accent); }
+.btn-hdr.btn-new:hover { background: rgba(124,138,255,0.2); }
 .proj-main { display: flex; flex: 1; min-height: 0; }
-.panel-tree { width: 240px; flex-shrink: 0; }
+.panel-left { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
+.project-list { border-bottom: 1px solid var(--border); max-height: 200px; overflow-y: auto; flex-shrink: 0; }
+.list-label { padding: 8px 14px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+.list-empty { padding: 12px 14px; font-size: 12px; color: var(--text-dim); text-align: center; }
+.project-item { padding: 8px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background .15s; }
+.project-item:hover { background: rgba(124,138,255,0.06); }
+.project-item.active { background: rgba(124,138,255,0.12); border-left: 2px solid var(--accent); }
+.project-item-name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-item-count { font-size: 11px; color: var(--text-dim); flex-shrink: 0; margin-left: 8px; }
+.panel-tree { flex: 1; overflow: hidden; }
 .panel-center { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border); }
-.panel-preview { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; background: #fff; }
+.panel-preview { flex-shrink: 0; display: flex; flex-direction: column; background: #1a1e2a; overflow: hidden; }
+.resize-handle { width: 5px; flex-shrink: 0; cursor: col-resize; background: transparent; transition: background .2s; z-index: 10; }
+.resize-handle:hover, .resize-handle:active { background: var(--accent); }
 .welcome-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 40px; text-align: center; }
 .welcome-icon { font-size: 48px; margin-bottom: 16px; }
 .welcome-panel h2 { font-size: 22px; color: #e5e7eb; margin: 0 0 8px; }
@@ -264,11 +572,35 @@ onBeforeUnmount(() => { abortController?.abort() })
 .code-panel-header { padding: 10px 16px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .file-path { font-size: 13px; color: var(--text); font-family: monospace; }
 .no-file-selected { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 14px; }
-.preview-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
-.preview-toolbar button { padding: 4px 14px; border: none; background: transparent; color: #9ca3af; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
-.preview-toolbar button:hover { color: #374151; }
-.preview-toolbar button.active { color: #5b6af0; border-bottom-color: #5b6af0; font-weight: 500; }
-.edit-hint { font-size: 11px; color: #92400e; margin-left: auto; }
-.preview-frame { flex: 1; width: 100%; border: none; background: #fff; }
-.preview-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 14px; padding: 20px; }
+.preview-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #141821; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.preview-label { font-size: 12px; color: #c9d1d9; font-weight: 500; }
+.preview-retry { padding: 2px 10px; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: auto; }
+.preview-container { flex: 1; min-height: 0; }
+.preview-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 14px; padding: 20px; background: #1a1e2a; }
+.preview-error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #ef4444; font-size: 14px; }
+.preview-error button { padding: 6px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+
+/* ===== 编辑模式 ===== */
+.btn-edit-mode { padding: 3px 10px; background: rgba(124,138,255,0.08); color: var(--accent); border: 1px solid rgba(124,138,255,0.2); border-radius: 4px; font-size: 11px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.btn-edit-mode:hover { background: rgba(124,138,255,0.15); border-color: rgba(124,138,255,0.35); }
+.btn-edit-mode.active { background: rgba(239,68,68,0.15); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+.preview-error-banner { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(239,68,68,0.08); border-bottom: 1px solid rgba(239,68,68,0.15); flex-shrink: 0; }
+.preview-error-banner .error-msg { font-size: 12px; color: #fca5a5; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-fix-error { padding: 3px 10px; background: rgba(124,138,255,0.15); color: var(--accent); border: 1px solid rgba(124,138,255,0.25); border-radius: 4px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.btn-fix-error:hover { background: rgba(124,138,255,0.25); }
+.edit-info-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(124,138,255,0.06); border-bottom: 1px solid rgba(124,138,255,0.1); font-size: 12px; color: #c9d1d9; flex-shrink: 0; }
+.edit-info-bar b { color: #a5b4fc; }
+.edit-info-bar .el-text-preview { color: #6b7280; }
+.btn-clear-sel { margin-left: auto; background: transparent; color: #9ca3af; border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+.btn-clear-sel:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+.edit-modify-bar { display: flex; gap: 8px; padding: 8px 12px; background: #141821; border-top: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+.modify-input { flex: 1; padding: 7px 12px; background: #1a1e2a; color: #c9d1d9; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 13px; outline: none; font-family: inherit; }
+.modify-input:focus { border-color: rgba(124,138,255,0.4); }
+.modify-input:disabled { opacity: 0.5; }
+.modify-input::placeholder { color: #4b5563; }
+.btn-modify { padding: 7px 16px; background: linear-gradient(135deg, var(--accent), #7c3aed); color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.btn-modify:hover:not(:disabled) { transform: scale(1.02); }
+.btn-modify:disabled { opacity: 0.4; cursor: default; }
+.btn-stop-modify { width: 32px; height: 32px; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.btn-stop-modify:hover { background: rgba(239,68,68,0.25); }
 </style>
