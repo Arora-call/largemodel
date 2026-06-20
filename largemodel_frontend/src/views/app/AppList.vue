@@ -1,10 +1,21 @@
 <template>
   <div class="app-list-page">
     <div class="page-header">
-      <h2>我的应用</h2>
+      <h2 class="page-title">我的应用</h2>
       <div class="header-actions">
-        <el-input v-model="keyword" placeholder="搜索应用..." clearable size="small" style="width:220px" @keyup.enter="fetchList" />
-        <el-select v-model="langFilter" placeholder="语言" clearable size="small" style="width:120px" @change="fetchList">
+        <el-input
+          v-model="keyword"
+          placeholder="搜索应用..."
+          clearable
+          size="default"
+          style="width:220px"
+          @keyup.enter="fetchList"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <el-select v-model="langFilter" placeholder="全部语言" clearable size="default" style="width:130px" @change="fetchList">
           <el-option label="全部" value="" />
           <el-option label="Vue" value="vue" />
           <el-option label="Java" value="java" />
@@ -14,68 +25,128 @@
       </div>
     </div>
 
-    <div v-if="apps.length === 0 && !loading" class="empty">
-      <p>还没有生成任何应用</p>
-      <el-button type="primary" @click="$router.push('/ai/generate')">去生成</el-button>
+    <!-- Empty state -->
+    <div v-if="apps.length === 0 && !loading" class="empty-state">
+      <div class="empty-icon">📁</div>
+      <h3>还没有生成任何应用</h3>
+      <p>去 AI 代码生成页面开始创建你的第一个应用</p>
+      <el-button type="primary" @click="$router.push('/ai/generate')">
+        ✨ 开始生成
+      </el-button>
     </div>
 
+    <!-- App grid -->
     <div v-else class="app-grid">
       <div v-for="app in apps" :key="app.id" class="app-card" @click="viewDetail(app)">
-        <div class="card-cover" :style="{ background: app.coverImage || 'linear-gradient(135deg,#6366f1,#8b5cf6)' }">
-          <span class="cover-lang">{{ app.language || app.type }}</span>
-          <span v-if="app.type === 'ENGINEERING'" class="cover-badge">📦 工程</span>
+        <div class="card-top">
+          <div class="card-type-badge" :class="app.type === 'ENGINEERING' ? 'type-project' : 'type-native'">
+            {{ app.type === 'ENGINEERING' ? '📦 工程' : '⚡ 原生' }}
+          </div>
+          <span class="card-lang">{{ app.language || 'code' }}</span>
         </div>
         <div class="card-body">
           <h4 class="card-name">{{ app.name }}</h4>
           <p class="card-desc">{{ app.description || '暂无描述' }}</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-date">{{ app.updatedAt?.substring(0, 10) || '-' }}</span>
           <div class="card-actions">
-            <button class="btn-dl" @click.stop="handleDownload(app)">下载</button>
-            <button @click.stop="confirmDelete(app)" class="btn-del">删除</button>
+            <button class="card-btn download-btn" @click.stop="handleDownload(app)" title="下载">⬇</button>
+            <button class="card-btn delete-btn" @click.stop="confirmDelete(app)" title="删除">🗑</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-if="total > size" class="pagination">
+    <!-- Pagination -->
+    <div v-if="total > size" class="pagination-area">
       <el-pagination
-        v-model:current-page="currentPage" :page-size="size"
-        :total="total" layout="prev, pager, next" @current-change="fetchList" small />
+        v-model:current-page="currentPage"
+        v-model:page-size="size"
+        :page-sizes="[12, 24, 48]"
+        :total="total"
+        layout="total, sizes, prev, pager, next"
+        @size-change="fetchList"
+        @current-change="fetchList"
+        small
+      />
     </div>
 
-    <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" :title="detailApp?.name" width="700px" destroy-on-close>
-      <div v-if="detailApp" class="detail-content">
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="类型">{{ detailApp.type === 'ENGINEERING' ? '工程项目' : '原生应用' }}</el-descriptions-item>
-          <el-descriptions-item label="语言">{{ detailApp.language || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ detailApp.createdAt?.substring(0,10) }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ detailApp.updatedAt?.substring(0,10) }}</el-descriptions-item>
-        </el-descriptions>
-
-        <!-- 项目文件结构 -->
-        <div v-if="projectFiles.length" class="proj-structure">
-          <h5>📂 项目结构</h5>
-          <div v-for="f in projectFiles" :key="f" class="file-item">{{ f }}</div>
+    <!-- Detail dialog — 项目结构 + 代码查看 + 重新编辑 -->
+    <el-dialog v-model="detailVisible" :title="detailApp?.name || '应用详情'" width="860px" destroy-on-close top="3vh">
+      <div v-if="detailApp" class="detail-container">
+        <div class="detail-meta">
+          <div class="meta-item">
+            <span class="meta-label">类型</span>
+            <span class="meta-value">{{ detailApp.type === 'ENGINEERING' ? '📦 工程项目' : '⚡ 原生应用' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">语言</span>
+            <span class="meta-value">{{ detailApp.language || '-' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">文件数</span>
+            <span class="meta-value">{{ projectFiles.length }} 个</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">更新时间</span>
+            <span class="meta-value">{{ detailApp.updatedAt?.substring(0, 16) || '-' }}</span>
+          </div>
         </div>
 
-        <!-- 依赖列表 -->
-        <div v-if="projectDeps.length" class="proj-deps">
-          <h5>📦 依赖</h5>
-          <el-tag v-for="d in projectDeps" :key="d" size="small" class="dep-tag">{{ d }}</el-tag>
+        <!-- 文件树 + 代码查看双栏 -->
+        <div class="detail-filetree-panel" v-if="isEngineering">
+          <div class="filetree-sidebar">
+            <div class="filetree-header">📂 项目文件</div>
+            <div class="filetree-list">
+              <div
+                v-for="f in projectFiles"
+                :key="f"
+                class="filetree-node"
+                :class="{ active: selectedDetailFile === f }"
+                @click="selectDetailFile(f)"
+              >
+                <span class="filetree-icon">{{ f.endsWith('/') ? '📁' : iconForFile(f) }}</span>
+                <span class="filetree-name">{{ f }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="filetree-code">
+            <CodeViewer
+              v-if="selectedDetailCode !== null"
+              :code="selectedDetailCode"
+              :language="detailApp.language || 'text'"
+              height="360px"
+              max-height="360px"
+            />
+            <div v-else class="no-file-selected">👈 从左侧文件列表选择文件查看代码</div>
+          </div>
         </div>
 
-        <div class="code-preview">
-          <CodeViewer
-            v-if="detailApp?.sourceCode"
-            :code="detailApp.sourceCode.substring(0, 5000)"
-            :language="detailApp.language || 'text'"
-            height="350px"
-            max-height="350px"
-          />
-          <p v-else class="no-code">无代码</p>
+        <!-- 原生应用：直接展示代码 -->
+        <div v-else class="detail-block">
+          <div class="code-area">
+            <CodeViewer
+              v-if="detailApp?.sourceCode"
+              :code="detailApp.sourceCode.substring(0, 5000)"
+              :language="detailApp.language || 'text'"
+              height="360px"
+              max-height="360px"
+            />
+            <p v-else class="no-code">无代码</p>
+          </div>
         </div>
+
         <div class="detail-actions">
-          <button class="btn-primary" @click="handleDownload(detailApp)">下载代码</button>
+          <el-button v-if="isEngineering" type="primary" @click="openInEditor(detailApp)">
+            ✏️ 在项目创建中编辑
+          </el-button>
+          <el-button @click="handleDownload(detailApp)">
+            <el-icon><Download /></el-icon> 下载 ZIP
+          </el-button>
+          <el-button type="danger" plain @click="detailVisible = false; confirmDelete(detailApp)">
+            <el-icon><Delete /></el-icon> 删除
+          </el-button>
         </div>
       </div>
     </el-dialog>
@@ -84,9 +155,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, Download, Delete } from '@element-plus/icons-vue'
 import { listApplications, getApplication, deleteApplication, downloadApplication } from '@/api/app'
 import CodeViewer from '@/components/CodeViewer.vue'
+
+const router = useRouter()
 
 const apps = ref([])
 const loading = ref(false)
@@ -97,26 +172,52 @@ const keyword = ref('')
 const langFilter = ref('')
 const detailVisible = ref(false)
 const detailApp = ref(null)
+
 const projectFiles = computed(() => {
-  try { return JSON.parse(detailApp.value?.configJson || '{}').files || [] } catch { return [] }
+  try {
+    const cfg = JSON.parse(detailApp.value?.configJson || '{}')
+    return cfg.files || cfg.tree?.map(f => f.path) || (Array.isArray(cfg) ? cfg.map(f => f.path || f) : [])
+  } catch { return [] }
 })
-const projectDeps = computed(() => {
-  try { return JSON.parse(detailApp.value?.configJson || '{}').dependencies || [] } catch { return [] }
-})
+const isEngineering = computed(() => detailApp.value?.type === 'ENGINEERING')
+const selectedDetailFile = ref('')
+const selectedDetailCode = ref(null)
+
+function iconForFile(path) {
+  const ext = path.split('.').pop()?.toLowerCase()
+  const map = { vue: '🟩', js: '🟨', ts: '🟦', html: '🟧', css: '🟦', json: '📋', py: '🐍', java: '☕', xml: '📋', md: '📝' }
+  return map[ext] || '📄'
+}
+
+function selectDetailFile(filePath) {
+  selectedDetailFile.value = filePath
+  // 从 sourceCode 中提取对应文件的代码
+  const code = detailApp.value?.sourceCode || ''
+  const marker = '// ===== ' + filePath + ' ====='
+  const regex = new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\n([\\s\\S]*?)(?=\\n// ===== |$)', 'g')
+  const match = regex.exec(code)
+  selectedDetailCode.value = match ? match[1].trim() : '// 代码未找到'
+}
+
+function openInEditor(app) {
+  detailVisible.value = false
+  router.push({ path: '/project/create', query: { projectId: app.id } })
+}
 
 async function handleDownload(app) {
-  try {
-    await downloadApplication(app.id, (app.name || 'code') + '.zip')
-  } catch {
-    ElMessage.error('下载失败，请检查网络或登录状态')
-  }
+  try { await downloadApplication(app.id, (app.name || 'code') + '.zip') }
+  catch { ElMessage.error('下载失败') }
 }
 
 async function fetchList() {
   loading.value = true
   try {
-    const res = await listApplications({ page: currentPage.value - 1, size: size.value, keyword: keyword.value, language: langFilter.value })
-    apps.value = res.data.content || []; total.value = res.data.totalElements || 0
+    const res = await listApplications({
+      page: currentPage.value - 1, size: size.value,
+      keyword: keyword.value, language: langFilter.value
+    })
+    apps.value = res.data.content || []
+    total.value = res.data.totalElements || 0
   } catch { apps.value = []; total.value = 0 }
   finally { loading.value = false }
 }
@@ -124,15 +225,17 @@ async function fetchList() {
 async function viewDetail(app) {
   try {
     const res = await getApplication(app.id)
-    detailApp.value = res.data; detailVisible.value = true
+    detailApp.value = res.data
+    detailVisible.value = true
   } catch { ElMessage.error('加载详情失败') }
 }
 
 async function confirmDelete(app) {
   try {
-    await ElMessageBox.confirm(`确定删除「${app.name}」？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除「${app.name}」？`, '确认删除', { type: 'warning' })
     await deleteApplication(app.id)
     ElMessage.success('已删除')
+    if (detailVisible.value) detailVisible.value = false
     fetchList()
   } catch { /* cancelled */ }
 }
@@ -141,35 +244,274 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-.app-list-page { max-width:1200px }
-.page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px }
-.page-header h2 { font-size:20px; font-weight:600; margin:0; color:#1a1a2e }
-.header-actions { display:flex; gap:8px }
-.empty { text-align:center; padding:60px 0; color:#999 }
-.app-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px }
-.app-card { background:#fff; border-radius:12px; overflow:hidden; cursor:pointer; transition:all .25s; border:1px solid #e5e7eb; box-shadow:0 1px 3px rgba(0,0,0,.04) }
-.app-card:hover { box-shadow:0 8px 24px rgba(0,0,0,.1); transform:translateY(-3px) }
-.card-cover { height:110px; background:linear-gradient(135deg,#5b6af0,#7c3aed); display:flex; align-items:flex-end; padding:10px 14px }
-.cover-lang { background:rgba(255,255,255,.2); color:#fff; padding:2px 10px; border-radius:10px; font-size:12px; text-transform:uppercase }
-.card-body { padding:14px 16px }
-.card-name { font-size:15px; font-weight:600; margin:0 0 6px; color:#1f2937 }
-.card-desc { font-size:13px; color:#9ca3af; margin:0 0 12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.card-actions { display:flex; gap:8px }
-.btn-dl { padding:5px 14px; background:#5b6af0; color:#fff; border-radius:6px; font-size:12px; text-decoration:none; border:none; cursor:pointer; transition:all .15s }
-.btn-dl:hover { background:#4f5de0; box-shadow:0 2px 8px rgba(91,106,240,.25) }
-.btn-del { padding:5px 12px; background:transparent; color:#ef4444; border:1px solid #fecaca; border-radius:6px; font-size:12px; cursor:pointer; transition:all .15s }
-.btn-del:hover { background:#fef2f2; border-color:#ef4444 }
-.pagination { margin-top:20px; display:flex; justify-content:center }
-.code-preview { background:#1e1e1e; border-radius:6px; margin-top:12px; overflow:hidden }
-.code-preview .no-code { color:#999; padding:20px; text-align:center }
-.detail-actions { margin-top:12px; text-align:right }
-.btn-primary { display:inline-block; padding:8px 22px; background:#5b6af0; color:#fff; border-radius:8px; text-decoration:none; font-size:14px; transition:all .15s }
-.btn-primary:hover { background:#4f5de0; box-shadow:0 4px 12px rgba(91,106,240,.25) }
-.cover-badge { background:rgba(255,255,255,.2); color:#fff; padding:2px 10px; border-radius:10px; font-size:11px; margin-left:auto }
-.proj-structure { margin-top:12px; background:#f9fafb; border-radius:8px; padding:10px 14px }
-.proj-structure h5 { margin:0 0 8px; font-size:13px; color:#374151 }
-.file-item { font-family:monospace; font-size:12px; color:#6b7280; padding:2px 0; padding-left:12px }
-.proj-deps { margin-top:12px }
-.proj-deps h5 { margin:0 0 8px; font-size:13px; color:#374151 }
-.dep-tag { margin-right:6px; margin-bottom:6px }
+.app-list-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ====== Empty ====== */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  color: var(--text-heading);
+  margin: 0 0 8px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0 0 24px;
+}
+
+/* ====== App Grid ====== */
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.app-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow);
+  transform: translateY(-3px);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 0;
+}
+
+.card-type-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.type-project {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.type-native {
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--success);
+}
+
+.card-lang {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--bg-primary);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.card-body {
+  padding: 12px 16px;
+  flex: 1;
+}
+
+.card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.card-date {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.card-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+
+.download-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.delete-btn:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.pagination-area {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ====== Detail Dialog ====== */
+.detail-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.meta-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.detail-block {
+  margin-bottom: 20px;
+}
+
+.detail-block h5 {
+  font-size: 13px;
+  color: var(--text-heading);
+  margin: 0 0 10px;
+}
+
+.file-list {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.file-item {
+  font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 3px 0 3px 16px;
+  position: relative;
+}
+
+.file-item::before {
+  content: '└';
+  position: absolute;
+  left: 0;
+  color: var(--text-dim);
+}
+
+.dep-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dep-tag {
+  margin: 0;
+}
+
+.code-area {
+  background: var(--bg-code);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.no-code {
+  color: var(--text-dim);
+  padding: 20px;
+  text-align: center;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+.detail-container { display: flex; flex-direction: column; gap: 16px; }
+.detail-filetree-panel { display: flex; gap: 0; border: 1px solid var(--border-color); border-radius: var(--radius); overflow: hidden; min-height: 360px; }
+.filetree-sidebar { width: 260px; flex-shrink: 0; background: var(--bg-secondary); border-right: 1px solid var(--border-color); overflow-y: auto; }
+.filetree-header { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--text-heading); border-bottom: 1px solid var(--border-color); }
+.filetree-list { padding: 4px 0; }
+.filetree-node { padding: 5px 14px 5px 20px; font-size: 12px; font-family: 'SF Mono','Fira Code',monospace; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; }
+.filetree-node:hover { background: var(--bg-hover); color: var(--text-primary); }
+.filetree-node.active { background: var(--accent-bg); color: var(--accent); }
+.filetree-icon { font-size: 13px; flex-shrink: 0; }
+.filetree-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.filetree-code { flex: 1; background: var(--bg-code); min-width: 0; }
+.no-file-selected { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 13px; }
 </style>

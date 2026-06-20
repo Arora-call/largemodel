@@ -66,21 +66,34 @@ function convertSetupScript(code) {
   body = body.replace(/import\s+\w+\s+from\s*['"][\s\S]*?['"]\s*;?/g, '')
   body = body.replace(/import\s+['"][\s\S]*?['"]\s*;?/g, '')
 
-  // 移除 defineProps / defineEmits / withDefaults
-  body = body.replace(/(?:const|let|var)\s+\w+\s*=\s*defineProps\s*<[\s\S]*?>\s*\([^)]*\)\s*;?/g, '')
-  body = body.replace(/(?:const|let|var)\s+\w+\s*=\s*defineEmits\s*<[\s\S]*?>\s*\([^)]*\)\s*;?/g, '')
+  // 移除 defineProps / defineEmits / withDefaults（CDN 全局构建没有这些编译宏）
+  // 保留赋值变量（如 const props = defineProps({...}) → const props = {}）
+  body = body.replace(/=\s*defineProps[^;]*;?/g, '= {}')
+  body = body.replace(/\bdefineProps[^;]*;?/g, '')
+  body = body.replace(/=\s*defineEmits[^;]*;?/g, '= (function(){})')
+  body = body.replace(/\bdefineEmits[^;]*;?/g, '')
   body = body.replace(/withDefaults\s*\(/g, '(')
 
   body = body.trim()
   if (!body) return body
 
-  // 检测需要返回的变量名
+  // 检测需要返回的变量名（仅顶层声明，花括号深度跟踪跳过函数/分支内部）
   const names = new Set()
   const lines = body.split('\n')
+  let depth = 0  // 下个行开头的花括号深度
 
   for (const line of lines) {
     const trimmed = line.trim()
     if (!trimmed) continue
+
+    // 本行声明是否位于顶层（depth 为上一行结束后的深度，即本行开头深度）
+    const isTopLevel = depth === 0
+
+    // 先统计花括号对后续行的影响
+    depth += (trimmed.match(/{/g) || []).length
+    depth -= (trimmed.match(/}/g) || []).length
+
+    if (!isTopLevel) continue
 
     const funcMatch = trimmed.match(/^(?:async\s+)?function\s+(\w+)/)
     if (funcMatch) {
@@ -126,9 +139,10 @@ export function buildVueCDNHtml(filesMap, options = {}) {
   const entries = Object.entries(filesMap)
   if (entries.length === 0) return null
 
-  // 1. 解析所有 .vue 文件
+  // 1. 解析所有文件：.vue → 组件, .css → 样式, .js → 数据模块
   const components = {}
   const allStyles = []
+  const dataScripts = []  // 非 main.js 的 JS 文件 → 内联为 <script>
 
   for (const [path, content] of entries) {
     const code = typeof content === 'string' ? content : (content.code || '')
@@ -142,9 +156,19 @@ export function buildVueCDNHtml(filesMap, options = {}) {
       if (parsed.style) {
         allStyles.push('/* ' + filename + ' */\n' + parsed.style)
       }
-    }
-    if (filename.endsWith('.css')) {
+    } else if (filename.endsWith('.css')) {
       allStyles.push('/* ' + filename + ' */\n' + code)
+    } else if (filename.endsWith('.js') && filename !== 'main.js' && path.startsWith('src/')) {
+      // 数据/配置模块：仅内联 src/ 下的 JS（排除根目录构建配置文件）
+      // 如果包含 node_modules 导入则跳过（无法在浏览器解析）
+      if (/\bimport\s+.+\s+from\s*['"][^.'"]/.test(code)) continue
+      const inline = code
+        .replace(/\bexport\s+(default\s+)?/g, '')
+        .replace(/\bimport\s+\{[^}]*\}\s*from\s*['"][^'"]*['"]\s*;?/g, '')
+        .replace(/\bimport\s+\w+\s+from\s*['"][^'"]*['"]\s*;?/g, '')
+        .replace(/\bimport\s+['"][^'"]*['"]\s*;?/g, '')
+        .trim()
+      if (inline) dataScripts.push({ path, code: inline })
     }
   }
 
@@ -210,6 +234,7 @@ export function buildVueCDNHtml(filesMap, options = {}) {
   lines.push('<head>')
   lines.push('  <meta charset="UTF-8">')
   lines.push('  <meta name="viewport" content="width=device-width, initial-scale=1.0">')
+  lines.push('  <base target="_self">')
   lines.push('  <title>项目预览</title>')
   lines.push('  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></scr' + 'ipt>')
 
@@ -233,6 +258,21 @@ export function buildVueCDNHtml(filesMap, options = {}) {
   lines.push('  <div id="app"></div>')
   lines.push('  <div id="__err"></div>')
   lines.push('  <script>')
+  lines.push('    // 图片加载失败兜底：替换为纯色占位图')
+  lines.push('    document.addEventListener("error", function(e) {')
+  lines.push('      if (e.target.tagName === "IMG") {')
+  lines.push('        var w = e.target.width || 300;')
+  lines.push('        var h = e.target.height || 200;')
+  lines.push('        e.target.src = "data:image/svg+xml," + encodeURIComponent(')
+  lines.push('          "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"" + w + "\\" height=\\"" + h + "\\">" +')
+  lines.push('          "<rect fill=\\"%23e2e8f0\\" width=\\"" + w + "\\" height=\\"" + h + "\\"/>" +')
+  lines.push('          "<text fill=\\"%2394a3b8\\" font-size=\\"14\\" text-anchor=\\"middle\\" x=\\"" + (w/2) + "\\" y=\\"" + (h/2) + "\\">图片加载失败</text>" +')
+  lines.push('          "</svg>");')
+  lines.push('        e.target.style.objectFit = "cover";')
+  lines.push('      }')
+  lines.push('    }, true);')
+  lines.push('  </scr' + 'ipt>')
+  lines.push('  <script>')
   lines.push('    (function() {')
   lines.push('      function showErr(e) {')
   lines.push('        var el = document.getElementById("__err");')
@@ -253,6 +293,16 @@ export function buildVueCDNHtml(filesMap, options = {}) {
 
   if (hasElementPlus) {
     lines.push('        var ElementPlus = window.ElementPlus;')
+  }
+
+  // 内联数据 JS 模块（移除 export 后作为全局变量，供组件使用）
+  if (dataScripts.length > 0) {
+    lines.push('')
+    lines.push('        /* === 数据/配置模块 === */')
+    for (const ds of dataScripts) {
+      lines.push('        // ' + ds.path)
+      lines.push('        ' + ds.code.replace(/\n/g, '\n        '))
+    }
   }
 
   lines.push('')
@@ -316,6 +366,33 @@ export function buildVueCDNHtml(filesMap, options = {}) {
     lines.push('    })();')
     lines.push('  </scr' + 'ipt>')
   }
+
+  // ===== 图片代理重写：将外部图片 URL 路由到后端代理，绕过 GFW =====
+  lines.push('  <script>')
+  lines.push('    (function() {')
+  lines.push('      var PROXY_BASE = "/api/proxy/image?url=";')
+  lines.push('      var PROXY_DOMAINS = ["picsum.photos", "images.unsplash.com", "fastly.picsum.photos"];')
+  lines.push('      function shouldProxy(src) {')
+  lines.push('        if (!src || src.startsWith("data:") || src.startsWith("/") || src.startsWith("./")) return false;')
+  lines.push('        return PROXY_DOMAINS.some(function(d) { return src.includes(d); });')
+  lines.push('      }')
+  lines.push('      function rewriteImg(img) {')
+  lines.push('        var src = img.getAttribute("src") || img.src;')
+  lines.push('        if (shouldProxy(src) && !src.startsWith(PROXY_BASE)) {')
+  lines.push('          img.src = PROXY_BASE + encodeURIComponent(src);')
+  lines.push('        }')
+  lines.push('      }')
+  lines.push('      document.querySelectorAll("img").forEach(rewriteImg);')
+  lines.push('      new MutationObserver(function(ms) {')
+  lines.push('        ms.forEach(function(m) {')
+  lines.push('          m.addedNodes.forEach(function(n) {')
+  lines.push('            if (n.tagName === "IMG") rewriteImg(n);')
+  lines.push('            if (n.querySelectorAll) n.querySelectorAll("img").forEach(rewriteImg);')
+  lines.push('          });')
+  lines.push('        });')
+  lines.push('      }).observe(document.documentElement, { childList: true, subtree: true });')
+  lines.push('    })();')
+  lines.push('  </scr' + 'ipt>')
 
   lines.push('</body>')
   lines.push('</html>')

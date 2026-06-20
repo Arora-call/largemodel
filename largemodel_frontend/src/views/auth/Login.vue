@@ -1,32 +1,38 @@
 <template>
   <div class="login-form">
-    <h2 class="form-title">欢迎登录</h2>
+    <div class="form-header">
+      <h2 class="form-title">欢迎回来</h2>
+      <p class="form-subtitle">登录你的账户以继续</p>
+    </div>
 
     <el-form
       ref="formRef"
       :model="form"
       :rules="rules"
-      label-position="top"
       size="large"
       @submit.prevent="handleLogin"
     >
-      <el-form-item label="用户名" prop="username">
+      <el-form-item prop="username">
         <el-input
           v-model="form.username"
-          placeholder="请输入用户名"
+          placeholder="用户名"
           :prefix-icon="User"
         />
       </el-form-item>
 
-      <el-form-item label="密码" prop="password">
+      <el-form-item prop="password">
         <el-input
           v-model="form.password"
           type="password"
-          placeholder="请输入密码"
+          placeholder="密码"
           show-password
           :prefix-icon="Lock"
         />
       </el-form-item>
+
+      <div class="form-extra">
+        <router-link to="/auth/forgot-password" class="forgot-link">忘记密码？</router-link>
+      </div>
 
       <el-form-item>
         <el-button
@@ -34,6 +40,7 @@
           native-type="submit"
           :loading="loading"
           class="submit-btn"
+          size="large"
         >
           {{ loading ? '登录中...' : '登 录' }}
         </el-button>
@@ -41,9 +48,8 @@
     </el-form>
 
     <div class="form-footer">
-      <router-link to="/auth/forgot-password" class="link">忘记密码？</router-link>
-      <span> | 还没有账号？</span>
-      <router-link to="/auth/register" class="link">立即注册</router-link>
+      <span>还没有账号？</span>
+      <router-link to="/auth/register">立即注册</router-link>
     </div>
   </div>
 </template>
@@ -80,23 +86,15 @@ const rules = {
 
 async function handleLogin() {
   if (!formRef.value) return
-
   try {
     await formRef.value.validate()
     loading.value = true
-
     await authStore.login(form)
-
     ElMessage.success('登录成功')
-
-    // 跳转到重定向页面或工作台
     const redirect = route.query.redirect || '/dashboard'
     router.push(redirect)
-  } catch (err) {
-    // 错误已在拦截器中处理
-  } finally {
-    loading.value = false
-  }
+  } catch { /* handled by interceptor */ }
+  finally { loading.value = false }
 }
 </script>
 
@@ -105,30 +103,59 @@ async function handleLogin() {
   width: 100%;
 }
 
+.form-header {
+  margin-bottom: 32px;
+}
+
 .form-title {
-  text-align: center;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1a1a2e;
-  margin: 0 0 24px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin: 0 0 6px;
+}
+
+.form-subtitle {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.form-extra {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+  margin-bottom: 24px;
+}
+
+.forgot-link {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.forgot-link:hover {
+  color: var(--accent);
 }
 
 .submit-btn {
   width: 100%;
+  margin-top: 8px;
 }
 
 .form-footer {
   text-align: center;
   font-size: 14px;
-  color: #666;
+  color: var(--text-dim);
 }
 
-.link {
-  color: #409eff;
+.form-footer a {
+  color: var(--accent);
   text-decoration: none;
+  font-weight: 500;
 }
 
-.link:hover {
-  text-decoration: underline;
+.form-footer a:hover {
+  color: var(--accent-hover);
 }
 </style>

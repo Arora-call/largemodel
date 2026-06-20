@@ -1,147 +1,112 @@
 <template>
-  <div class="profile">
+  <div class="profile-page">
     <h2 class="page-title">个人中心</h2>
 
-    <el-row :gutter="20">
+    <div class="profile-grid">
       <!-- 基本信息 -->
-      <el-col :span="14">
-        <el-card shadow="hover">
-          <template #header>
-            <span>基本信息</span>
-          </template>
+      <div class="profile-section">
+        <div class="section-header">
+          <span class="section-label">基本信息</span>
+        </div>
 
-          <!-- 头像区域 -->
-          <div class="avatar-section">
-            <div class="avatar-wrapper" @click="triggerUpload" title="点击更换头像">
-              <el-avatar :size="80" :src="avatarPreviewUrl">
-                <span class="avatar-placeholder">{{ (authStore.nickname || authStore.username).charAt(0).toUpperCase() }}</span>
+        <div class="section-body">
+          <!-- 头像 -->
+          <div class="avatar-row" @click="triggerUpload" title="点击更换头像">
+            <div class="avatar-wrap">
+              <el-avatar :size="72" :src="avatarPreviewUrl">
+                <span class="avatar-text">{{ (authStore.nickname || authStore.username).charAt(0).toUpperCase() }}</span>
               </el-avatar>
               <div class="avatar-overlay">
                 <el-icon><Camera /></el-icon>
-                <span>更换头像</span>
+                <span>更换</span>
               </div>
             </div>
-            <p class="avatar-hint">点击头像更换，支持 JPG/PNG，不超过 2MB</p>
+            <div class="avatar-info">
+              <span class="avatar-label">点击更换头像</span>
+              <span class="avatar-hint">支持 JPG/PNG，不超过 2MB</span>
+            </div>
           </div>
 
-          <!-- 隐藏的文件输入 -->
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="handleFileChange"
-          />
+          <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="handleFileChange" />
 
-          <el-form
-            ref="formRef"
-            :model="form"
-            :rules="rules"
-            label-width="100px"
-          >
-            <el-form-item label="用户名">
-              <el-input :model-value="authStore.username" disabled />
-            </el-form-item>
+          <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" label-position="top">
+            <div class="form-row">
+              <el-form-item label="用户名">
+                <el-input :model-value="authStore.username" disabled />
+              </el-form-item>
+              <el-form-item label="昵称" prop="nickname">
+                <el-input v-model="form.nickname" placeholder="设置昵称" />
+              </el-form-item>
+            </div>
+            <div class="form-row">
+              <el-form-item label="邮箱" prop="email">
+                <el-input v-model="form.email" placeholder="设置邮箱" />
+              </el-form-item>
+              <el-form-item label="手机号" prop="phone">
+                <el-input v-model="form.phone" placeholder="设置手机号" />
+              </el-form-item>
+            </div>
 
-            <el-form-item label="昵称" prop="nickname">
-              <el-input v-model="form.nickname" placeholder="请输入昵称" />
-            </el-form-item>
+            <div class="info-row">
+              <div class="info-item">
+                <span class="info-label">角色</span>
+                <el-tag :type="authStore.isAdmin ? 'danger' : 'primary'" size="small">
+                  {{ authStore.user?.roleDisplayName || authStore.userRole }}
+                </el-tag>
+              </div>
+              <div class="info-item">
+                <span class="info-label">注册时间</span>
+                <span class="info-value">{{ formatDate(authStore.user?.createdAt) }}</span>
+              </div>
+            </div>
 
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="form.email" placeholder="请输入邮箱" />
-            </el-form-item>
-
-            <el-form-item label="手机号" prop="phone">
-              <el-input v-model="form.phone" placeholder="请输入手机号" />
-            </el-form-item>
-
-            <el-form-item label="角色">
-              <el-tag :type="authStore.isAdmin ? 'danger' : 'primary'">
-                {{ authStore.user?.roleDisplayName || authStore.userRole }}
-              </el-tag>
-            </el-form-item>
-
-            <el-form-item label="注册时间">
-              <span>{{ authStore.user?.createdAt ? formatDate(authStore.user.createdAt) : '-' }}</span>
-            </el-form-item>
-
-            <el-form-item>
-              <el-button type="primary" :loading="saving" @click="handleUpdate">
-                保存修改
-              </el-button>
-            </el-form-item>
+            <el-button type="primary" :loading="saving" @click="handleUpdate" class="save-btn">
+              保存修改
+            </el-button>
           </el-form>
-        </el-card>
-      </el-col>
+        </div>
+      </div>
 
       <!-- 修改密码 -->
-      <el-col :span="10">
-        <el-card shadow="hover">
-          <template #header>
-            <span>修改密码</span>
-          </template>
-
-          <el-form
-            ref="passwordFormRef"
-            :model="passwordForm"
-            :rules="passwordRules"
-            label-width="100px"
-          >
+      <div class="profile-section">
+        <div class="section-header">
+          <span class="section-label">修改密码</span>
+        </div>
+        <div class="section-body">
+          <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-position="top">
             <el-form-item label="原密码" prop="oldPassword">
-              <el-input
-                v-model="passwordForm.oldPassword"
-                type="password"
-                show-password
-                placeholder="请输入原密码"
-              />
+              <el-input v-model="pwdForm.oldPassword" type="password" show-password placeholder="输入原密码" />
             </el-form-item>
-
             <el-form-item label="新密码" prop="newPassword">
-              <el-input
-                v-model="passwordForm.newPassword"
-                type="password"
-                show-password
-                placeholder="请输入新密码（至少6位）"
-              />
+              <el-input v-model="pwdForm.newPassword" type="password" show-password placeholder="至少6位" />
             </el-form-item>
-
-            <el-form-item>
-              <el-button type="primary" :loading="changingPwd" @click="handleChangePassword">
-                修改密码
-              </el-button>
-            </el-form-item>
+            <el-button type="primary" :loading="changingPwd" @click="handleChangePwd" class="save-btn">
+              修改密码
+            </el-button>
           </el-form>
-        </el-card>
+        </div>
+      </div>
+    </div>
 
-        <!-- 注销账户 -->
-        <el-card shadow="hover" class="danger-card" style="margin-top: 20px">
-          <template #header>
-            <span style="color: #f56c6c">危险操作</span>
-          </template>
+    <!-- 危险操作 -->
+    <div class="danger-section">
+      <div class="danger-header">
+        <span class="danger-label">危险操作</span>
+        <span class="danger-desc">注销账户后，所有数据将被清除且无法恢复</span>
+      </div>
+      <el-button type="danger" :loading="deleting" @click="handleDelete" plain>
+        注销账户
+      </el-button>
+    </div>
 
-          <p class="danger-text">注销账户后，所有数据将被清除且无法恢复。</p>
-          <el-button type="danger" :loading="deleting" @click="handleDeleteAccount">
-            注销账户
-          </el-button>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 头像预览上传弹窗 -->
-    <el-dialog
-      v-model="previewDialogVisible"
-      title="更换头像"
-      width="420px"
-      :close-on-click-modal="false"
-    >
+    <!-- 头像预览弹窗 -->
+    <el-dialog v-model="previewVisible" title="更换头像" width="420px">
       <div class="preview-body">
-        <img :src="previewImageUrl" alt="预览" class="preview-image" />
+        <img :src="previewUrl" alt="Preview" class="preview-img" />
       </div>
       <template #footer>
-        <el-button @click="handleCancelUpload">取消</el-button>
-        <el-button type="primary" :loading="uploadingAvatar" @click="handleAvatarUpload">
-          确认上传
-        </el-button>
+        <el-button @click="cancelUpload">取消</el-button>
+        <el-button type="primary" :loading="uploading" @click="handleUpload">确认上传</el-button>
       </template>
     </el-dialog>
   </div>
@@ -159,131 +124,89 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const formRef = ref(null)
-const passwordFormRef = ref(null)
-const fileInputRef = ref(null)
+const pwdFormRef = ref(null)
+const fileInput = ref(null)
 const saving = ref(false)
 const changingPwd = ref(false)
 const deleting = ref(false)
-const uploadingAvatar = ref(false)
+const uploading = ref(false)
 const selectedFile = ref(null)
-const previewDialogVisible = ref(false)
-const previewImageUrl = ref('')
+const previewVisible = ref(false)
+const previewUrl = ref('')
 
-const form = reactive({
-  nickname: '',
-  email: '',
-  phone: ''
-})
-
-const passwordForm = reactive({
-  oldPassword: '',
-  newPassword: ''
-})
+const form = reactive({ nickname: '', email: '', phone: '' })
+const pwdForm = reactive({ oldPassword: '', newPassword: '' })
 
 const rules = {
   email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
 }
-
-const passwordRules = {
-  oldPassword: [
-    { required: true, message: '请输入原密码', trigger: 'blur' }
-  ],
+const pwdRules = {
+  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少6位', trigger: 'blur' }
   ]
 }
 
-// 构建头像完整 URL（相对路径拼接后端地址）
 const avatarPreviewUrl = computed(() => {
   const avatar = authStore.user?.avatar
   if (!avatar) return ''
-  // 已经是完整 URL
   if (avatar.startsWith('http://') || avatar.startsWith('https://')) return avatar
-  // 相对路径，拼接后端地址（开发时走 Vite proxy，生产时同域）
   return avatar
 })
 
-// 触发文件选择
-function triggerUpload() {
-  fileInputRef.value?.click()
-}
+function triggerUpload() { fileInput.value?.click() }
 
-// 处理文件选择
 function handleFileChange(e) {
   const file = e.target.files?.[0]
   if (!file) return
-
-  // 前端校验
-  if (!file.type.startsWith('image/')) {
-    ElMessage.warning('请选择图片文件')
-    return
-  }
-  if (file.size > 2 * 1024 * 1024) {
-    ElMessage.warning('图片大小不能超过 2MB')
-    return
-  }
-
+  if (!file.type.startsWith('image/')) { ElMessage.warning('请选择图片文件'); return }
+  if (file.size > 2 * 1024 * 1024) { ElMessage.warning('图片大小不能超过 2MB'); return }
   selectedFile.value = file
-  previewImageUrl.value = URL.createObjectURL(file)
-  previewDialogVisible.value = true
-
-  // 重置 input 以便重复选择同一文件
+  previewUrl.value = URL.createObjectURL(file)
+  previewVisible.value = true
   e.target.value = ''
 }
 
-// 确认上传头像
-async function handleAvatarUpload() {
+async function handleUpload() {
   if (!selectedFile.value) return
+  uploading.value = true
   try {
-    uploadingAvatar.value = true
     const res = await uploadAvatar(selectedFile.value)
-    // 更新 authStore 中的用户头像
     authStore.setUser({ ...authStore.user, avatar: res.data })
     ElMessage.success('头像上传成功')
-    previewDialogVisible.value = false
-    // 释放 blob URL
-    URL.revokeObjectURL(previewImageUrl.value)
-    previewImageUrl.value = ''
+    previewVisible.value = false
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
     selectedFile.value = null
-  } catch {
-    // request interceptor 已处理错误提示
-  } finally {
-    uploadingAvatar.value = false
-  }
+  } catch { /* handled */ }
+  finally { uploading.value = false }
 }
 
-// 取消上传
-function handleCancelUpload() {
-  previewDialogVisible.value = false
-  URL.revokeObjectURL(previewImageUrl.value)
-  previewImageUrl.value = ''
+function cancelUpload() {
+  previewVisible.value = false
+  URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = ''
   selectedFile.value = null
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
+function formatDate(d) {
+  if (!d) return '-'
+  return new Date(d).toLocaleDateString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
   })
 }
 
 onMounted(async () => {
   try {
     await authStore.fetchUserInfo()
-    const user = authStore.user
-    if (user) {
-      form.nickname = user.nickname || ''
-      form.email = user.email || ''
-      form.phone = user.phone || ''
+    const u = authStore.user
+    if (u) {
+      form.nickname = u.nickname || ''
+      form.email = u.email || ''
+      form.phone = u.phone || ''
     }
-  } catch {
-    // ignore
-  }
+  } catch { /* ignore */ }
 })
 
 async function handleUpdate() {
@@ -298,145 +221,143 @@ async function handleUpdate() {
     })
     authStore.setUser(res.data)
     ElMessage.success('保存成功')
-  } catch {
-    // ignore
-  } finally {
-    saving.value = false
-  }
+  } catch { /* handled */ }
+  finally { saving.value = false }
 }
 
-async function handleChangePassword() {
-  if (!passwordFormRef.value) return
+async function handleChangePwd() {
+  if (!pwdFormRef.value) return
   try {
-    await passwordFormRef.value.validate()
+    await pwdFormRef.value.validate()
     changingPwd.value = true
-    await changePassword({
-      oldPassword: passwordForm.oldPassword,
-      newPassword: passwordForm.newPassword
-    })
+    await changePassword({ oldPassword: pwdForm.oldPassword, newPassword: pwdForm.newPassword })
     ElMessage.success('密码修改成功，请重新登录')
-    passwordForm.oldPassword = ''
-    passwordForm.newPassword = ''
+    pwdForm.oldPassword = ''
+    pwdForm.newPassword = ''
     authStore.logout()
     router.push('/auth/login')
-  } catch {
-    // ignore
-  } finally {
-    changingPwd.value = false
-  }
+  } catch { /* handled */ }
+  finally { changingPwd.value = false }
 }
 
-async function handleDeleteAccount() {
+async function handleDelete() {
   try {
-    await ElMessageBox.confirm(
-      '确定要注销账户吗？此操作不可恢复！',
-      '警告',
-      {
-        confirmButtonText: '确定注销',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
-    )
+    await ElMessageBox.confirm('确定要注销账户吗？此操作不可恢复！', '警告', {
+      confirmButtonText: '确定注销', cancelButtonText: '取消', type: 'warning'
+    })
     deleting.value = true
     await deleteAccount()
     ElMessage.success('账户已注销')
     authStore.logout()
     router.push('/auth/login')
-  } catch {
-    // cancelled
-  } finally {
-    deleting.value = false
-  }
+  } catch { /* cancelled */ }
+  finally { deleting.value = false }
 }
 </script>
 
 <style scoped>
-.profile {
-  max-width: 1200px;
-}
+.profile-page { max-width: 860px; margin: 0 auto; }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0 0 20px;
-  color: #1a1a2e;
-}
-
-.danger-text {
-  color: #666;
-  font-size: 14px;
-  margin: 0 0 16px;
-}
-
-/* 头像上传 */
-.avatar-section {
+.profile-grid {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 20px;
   margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #ebeef5;
 }
 
-.avatar-wrapper {
+.profile-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.section-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.section-body {
+  padding: 24px 20px;
+}
+
+.avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.avatar-wrap {
   position: relative;
   cursor: pointer;
   border-radius: 50%;
   overflow: hidden;
-  transition: transform 0.2s;
+  flex-shrink: 0;
 }
 
-.avatar-wrapper:hover {
-  transform: scale(1.05);
-}
-
-.avatar-wrapper :deep(.el-avatar) {
-  display: block;
-}
-
-.avatar-placeholder {
-  font-size: 28px;
-  font-weight: 600;
-}
+.avatar-wrap:hover { transform: scale(1.05); transition: transform var(--transition); }
 
 .avatar-overlay {
   position: absolute;
   inset: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  gap: 2px;
   color: #fff;
-  font-size: 13px;
-  gap: 4px;
+  font-size: 11px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--transition);
 }
 
-.avatar-wrapper:hover .avatar-overlay {
-  opacity: 1;
-}
+.avatar-wrap:hover .avatar-overlay { opacity: 1; }
 
-.avatar-hint {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: #999;
-}
+.avatar-text { font-size: 28px; font-weight: 600; }
 
-/* 头像预览弹窗 */
-.preview-body {
+.avatar-info { display: flex; flex-direction: column; gap: 4px; }
+.avatar-label { font-size: 14px; color: var(--text-primary); font-weight: 500; }
+.avatar-hint { font-size: 12px; color: var(--text-dim); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.info-row { display: flex; gap: 40px; margin-bottom: 20px; }
+.info-item { display: flex; flex-direction: column; gap: 6px; }
+.info-label { font-size: 12px; color: var(--text-dim); }
+.info-value { font-size: 14px; color: var(--text-primary); }
+
+.save-btn { margin-top: 8px; }
+
+.danger-section {
   display: flex;
-  justify-content: center;
   align-items: center;
-  padding: 16px 0;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: var(--danger-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-lg);
 }
 
-.preview-image {
-  max-width: 100%;
-  max-height: 360px;
-  border-radius: 8px;
-  object-fit: contain;
+.danger-header { display: flex; flex-direction: column; gap: 4px; }
+.danger-label { font-size: 14px; font-weight: 600; color: var(--danger); }
+.danger-desc { font-size: 13px; color: var(--text-dim); }
+
+.preview-body { display: flex; justify-content: center; padding: 16px 0; }
+.preview-img { max-width: 100%; max-height: 360px; border-radius: var(--radius); object-fit: contain; }
+
+@media (max-width: 600px) {
+  .form-row { grid-template-columns: 1fr; }
+  .danger-section { flex-direction: column; gap: 16px; text-align: center; }
 }
 </style>

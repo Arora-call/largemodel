@@ -457,7 +457,7 @@ function startNewChat() {
 /** 从后端加载对话列表（始终同步，去重合并） */
 async function loadConversationsFromBackend() {
   try {
-    const res = await listConversations()
+    const res = await listConversations({ type: 'NATIVE' })
     if (res.data && res.data.length > 0) {
       // 移除空的本地占位对话（无 backendId 且无消息的临时对话）
       for (let i = conversations.length - 1; i >= 0; i--) {

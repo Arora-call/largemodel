@@ -1,0 +1,15 @@
+/**
+ * CodeForge Agent Service — port 8084
+ * 功能：多 Agent 工作流编排、任务调度、SSE 流式执行
+ */
+package org.example.agent;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication(scanBasePackages = { "org.example.agent", "org.example.mapper", "org.example.config" })
+public class AgentApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(AgentApplication.class, args);
+    }
+}

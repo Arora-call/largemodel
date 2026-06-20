@@ -69,6 +69,10 @@ export function clearConversations() {
   return request.delete('/conversations/clear')
 }
 
+export function deleteProject(id) {
+  return request.delete(`/projects/${id}`)
+}
+
 export function getDashboardStats() {
   return request.get('/dashboard/stats')
 }

@@ -65,6 +65,36 @@ const routes = [
         name: 'AdminUsers',
         component: () => import('@/views/admin/Users.vue'),
         meta: { title: '用户管理', requiresAuth: true, requiresAdmin: true }
+      },
+      {
+        path: 'admin/models',
+        name: 'AdminModels',
+        component: () => import('@/views/admin/Models.vue'),
+        meta: { title: '模型配置', requiresAuth: true, requiresAdmin: true }
+      },
+      {
+        path: 'admin/logs',
+        name: 'AdminLogs',
+        component: () => import('@/views/admin/Logs.vue'),
+        meta: { title: '系统日志', requiresAuth: true, requiresAdmin: true }
+      },
+      {
+        path: 'knowledge',
+        name: 'Knowledge',
+        component: () => import('@/views/knowledge/Index.vue'),
+        meta: { title: '知识库', requiresAuth: true }
+      },
+      {
+        path: 'agents',
+        name: 'Agents',
+        component: () => import('@/views/agents/Index.vue'),
+        meta: { title: 'Agent 工作流', requiresAuth: true }
+      },
+      {
+        path: 'monitor',
+        name: 'Monitor',
+        component: () => import('@/views/monitor/Index.vue'),
+        meta: { title: '监控大盘', requiresAuth: true }
       }
     ]
   }
@@ -80,7 +110,7 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const user = JSON.parse(localStorage.getItem('user') || 'null')
 
-  document.title = to.meta.title ? `${to.meta.title} - 大模型应用平台` : '大模型应用平台'
+  document.title = to.meta.title ? `${to.meta.title} - CodeForge` : 'CodeForge'
 
   // 需要认证的页面
   if (to.meta.requiresAuth && !token) {

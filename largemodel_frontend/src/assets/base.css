@@ -1,3 +1,66 @@
+/* ====== CodeForge Design System ====== */
+:root {
+  /* Background */
+  --bg-primary: #0d1117;
+  --bg-secondary: #0a0d13;
+  --bg-card: #141821;
+  --bg-code: #1a1e2a;
+  --bg-hover: rgba(124, 138, 255, 0.06);
+  --bg-active: rgba(124, 138, 255, 0.12);
+
+  /* Border */
+  --border-color: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(124, 138, 255, 0.25);
+
+  /* Text */
+  --text-primary: #c9d1d9;
+  --text-secondary: #8b949e;
+  --text-dim: #6b7280;
+  --text-heading: #e5e7eb;
+
+  /* Accent */
+  --accent: #7c8aff;
+  --accent-hover: #909aff;
+  --accent-bg: rgba(124, 138, 255, 0.1);
+  --accent-bg-hover: rgba(124, 138, 255, 0.18);
+  --accent-gradient: linear-gradient(135deg, #7c8aff 0%, #a78bfa 100%);
+
+  /* Status */
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.1);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.1);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
+
+  /* Typography */
+  --font-sans: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+
+  /* Spacing (4px base) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(124, 138, 255, 0.15);
+
+  /* Transition */
+  --transition: 0.2s ease;
+}
+
 *,
 *::before,
 *::after {
@@ -5,19 +68,48 @@
   margin: 0;
 }
 
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
   min-height: 100vh;
   line-height: 1.6;
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    'Noto Sans SC',
-    sans-serif;
+  font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Links */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* Selection */
+::selection {
+  background: rgba(124, 138, 255, 0.3);
+  color: #fff;
 }

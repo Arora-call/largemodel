@@ -1,0 +1,28 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: codeforge-agent
+  datasource:
+    url: jdbc:mysql://localhost:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: org.example.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+  secret: YTJkZjQzNTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZA==
+  expiration: 86400000
+
+langchain4j:
+  openai:
+    base-url: https://api.deepseek.com
+    model-name: deepseek-v4-flash
+    temperature: 0.7
+    max-tokens: 16384

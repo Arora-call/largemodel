@@ -1,16 +1,27 @@
 <template>
   <div class="sandbox-preview" :style="{ height }">
-    <!-- CDN 模式：使用 iframe 绕过 Sandpack 的 Vite 原生二进制问题 -->
+    <!-- CDN 模式：Vue 项目 -->
     <div v-if="hasFiles && shouldUseCDN && cdnHtml" class="cdn-iframe-container">
       <iframe
         :key="'cdn-' + sandpackKey"
         :srcdoc="cdnHtml"
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts"
+        referrerpolicy="no-referrer"
+        class="preview-iframe"
+      ></iframe>
+    </div>
+    <!-- 纯 HTML 项目：直接 iframe 渲染 -->
+    <div v-else-if="hasFiles && useDirectHtml && directHtmlContent" class="cdn-iframe-container">
+      <iframe
+        :key="'html-' + sandpackKey"
+        :srcdoc="directHtmlContent"
+        sandbox="allow-scripts"
+        referrerpolicy="no-referrer"
         class="preview-iframe"
       ></iframe>
     </div>
     <!-- Sandpack 模式 -->
-    <div v-else-if="hasFiles && !shouldUseCDN" class="sandbox-container">
+    <div v-else-if="hasFiles && !shouldUseCDN && !useDirectHtml" class="sandbox-container">
       <Sandpack
         :key="sandpackKey"
         :template="detectedTemplate"
@@ -125,6 +136,33 @@ const shouldUseCDN = computed(() => {
 const cdnHtml = computed(() => {
   if (!shouldUseCDN.value) return null
   return buildVueCDNHtml(normalizedFiles.value, { editMode: props.editMode })
+})
+
+// ===================== 纯 HTML 直出模式 =====================
+
+/** 是否使用直接 HTML iframe（纯 HTML 项目，无 .vue 文件） */
+const useDirectHtml = computed(() => {
+  if (shouldUseCDN.value) return false
+  const exts = fileExtensions.value
+  const hasHtml = exts.includes('html') || exts.includes('htm')
+  const hasVue = exts.includes('vue')
+  const hasJsEntry = Object.keys(normalizedFiles.value).some(
+    p => /main\.(js|ts)$/i.test(p) || /index\.(js|ts)$/i.test(p) || /app\.(js|tsx?)$/i.test(p)
+  )
+  // 纯 HTML：有 .html 文件，但没有 .vue 或 JS 入口文件
+  return hasHtml && !hasVue && !hasJsEntry
+})
+
+/** 纯 HTML 项目的直接预览内容（找 index.html 作为入口） */
+const directHtmlContent = computed(() => {
+  if (!useDirectHtml.value) return null
+  const paths = Object.keys(normalizedFiles.value)
+  // 优先找 index.html
+  let entryPath = paths.find(p => /index\.html?$/i.test(p))
+  if (!entryPath) entryPath = paths.find(p => /\.html?$/i.test(p))
+  if (!entryPath) return null
+  const content = normalizedFiles.value[entryPath]
+  return typeof content === 'string' ? content : content?.code || ''
 })
 
 /**

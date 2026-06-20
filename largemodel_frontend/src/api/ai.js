@@ -15,6 +15,11 @@ export function generateCodeStream(data, { onToken, onDone, onError, signal }) {
   return streamRequest('/api/ai/generate/stream', data, { onToken, onDone, onError, signal })
 }
 
+/** 流式代码审查 */
+export function reviewCodeStream(data, { onToken, onDone, onError, signal }) {
+  return streamRequest('/api/ai/review', data, { onToken, onDone, onError, signal })
+}
+
 function streamRequest(url, data, { onToken, onDone, onError, signal }) {
   const token = localStorage.getItem('token')
 

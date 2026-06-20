@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: codeforge-gateway
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        # Code Service (:8082) — 所有已实现逻辑
+        - id: code-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/auth/**,/api/user/**,/api/ai/**,/api/projects/**,/api/applications/**,/api/conversations/**,/api/dashboard/**,/api/admin/**
+        # Knowledge Service (:8083) — 知识库
+        - id: knowledge-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/knowledge/**
+        # Agent Service (:8084) — Agent 工作流
+        - id: agent-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/agents/**
+
+# JWT secret (for gateway-level token parsing)
+jwt:
+  secret: YTJkZjQzNTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZA==
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
