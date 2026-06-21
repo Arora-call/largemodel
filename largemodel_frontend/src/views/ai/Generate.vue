@@ -651,7 +651,7 @@ async function handleGenerate() {
       {
         signal: abortController.signal,
         onToken: (t) => { streamText.value += t; scrollToBottom() },
-        onDone: (raw) => handleStreamDone(raw, conv, true),
+        onDone: (raw) => handleStreamDone(raw, conv, false),
         onError: (err) => { ElMessage.error(err.message || '生成失败'); streamText.value = ''; generating.value = false }
       }
     )

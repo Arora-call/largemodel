@@ -12,6 +12,10 @@ export function getApplication(id) {
   return request.get(`/applications/${id}`)
 }
 
+export function updateApplication(id, data) {
+  return request.post('/applications', { id, ...data })
+}
+
 export function deleteApplication(id) {
   return request.delete(`/applications/${id}`)
 }

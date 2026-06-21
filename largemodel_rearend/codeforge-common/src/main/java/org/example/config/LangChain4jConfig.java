@@ -17,12 +17,14 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 
 @Configuration
+@ConditionalOnProperty(name = "langchain4j.openai.model-name")
 public class LangChain4jConfig {
 
     private static final Logger log = LoggerFactory.getLogger(LangChain4jConfig.class);
@@ -36,6 +38,7 @@ public class LangChain4jConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "langchain4j.openai.model-name")
     public ChatLanguageModel chatLanguageModel(
             @Value("${langchain4j.openai.base-url:https://api.openai.com/v1}") String baseUrl,
             @Value("${langchain4j.openai.model-name}") String modelName,
@@ -49,6 +52,7 @@ public class LangChain4jConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "langchain4j.openai.model-name")
     public StreamingChatLanguageModel streamingChatLanguageModel(
             @Value("${langchain4j.openai.base-url:https://api.openai.com/v1}") String baseUrl,
             @Value("${langchain4j.openai.model-name}") String modelName,

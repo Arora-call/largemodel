@@ -1,6 +1,6 @@
 # CodeForge（代码锻造）— 大模型代码应用生成平台
 
-> 作者：yx | 更新时间：2026-06-20（微服务重构完成）
+> 作者：yx | 更新时间：2026-06-21（架构稳定，功能完善）
 
 ---
 
@@ -39,6 +39,14 @@
 - **API 网关**：Spring Cloud Gateway 统一入口，路由 + CORS + 鉴权
 - **AI 驱动**：LangChain4j + DeepSeek/GLM，SSE 流式输出
 - **容器化部署**：Docker Compose 一键启动 10 个服务
+
+### 2026-06-21 更新
+
+- 🐛 **修复**：AI 代码生成不再自动保存到「我的应用」，改为用户手动保存
+- ✨ **新增**：「我的应用」支持重命名功能（卡片 ✏️ 按钮）
+- 🧹 **优化**：消除 10 个重复 Config 文件，统一由 `codeforge-common` 管理
+- 🔧 **优化**：`LangChain4jConfig` 按需加载，Auth/Admin 模块无需 LLM 配置
+- 📝 **文档**：新增后续规划章节（19 项待实现功能）
 
 ---
 
@@ -105,10 +113,10 @@
 | 模块 | 状态 | 功能点 |
 |------|------|--------|
 | **用户体系** | ✅ | 注册/登录、JWT 认证、角色权限、找回密码、头像上传、账号切换 |
-| **AI 代码生成** | ✅ | SSE 流式输出、多轮对话、代码块解析、中断续写、单文件预览编辑 |
+| **AI 代码生成** | ✅ | SSE 流式输出、多轮对话、代码块解析、中断续写、手动保存（不自动存） |
 | **工程项目** | ✅ | 多文件生成、文件树、CDN 沙箱预览、ZIP 下载、面板拖拽 |
 | **AI 代码审查** | ✅ | SSE 流式审查、安全/性能/规范/最佳实践 4 维度评分 |
-| **应用管理** | ✅ | CRUD、分页搜索、语言筛选、封面图、下载 |
+| **应用管理** | ✅ | CRUD、重命名、分页搜索、语言筛选、封面图、下载 |
 | **知识库** | ✅ | 文档上传、全文搜索、集合管理、向量化预留 |
 | **Agent 工作流** | ✅ | 5 Agent 链式编排、SSE 分阶段执行、任务追踪 |
 | **监控大盘** | 🚧 | 统计卡片 + 图表占位（后端统计 API 待完善） |
@@ -195,11 +203,11 @@ largemodel_rearend/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | /api/applications | 保存应用 |
-| GET | /api/applications | 分页列表+筛选 |
+| POST | /api/applications | 保存/更新应用（传 `id` 则更新，不传则新建） |
+| GET | /api/applications | 分页列表+筛选（关键词/语言/分页） |
 | GET | /api/applications/{id} | 详情 |
 | DELETE | /api/applications/{id} | 删除 |
-| GET | /api/applications/{id}/download | 下载代码 |
+| GET | /api/applications/{id}/download | 下载代码（支持 blob 下载 + JWT 查询参数） |
 
 ### 6.6 知识库 `/api/knowledge/*`（需登录）✨
 
@@ -256,7 +264,7 @@ largemodel_frontend/
 │   │   ├── auth.js / user.js          # 认证 + 用户
 │   │   ├── admin.js                   # 管理
 │   │   ├── ai.js                      # AI 生成 + 修改 + 审查
-│   │   ├── app.js                     # 应用 + 对话 + 仪表盘
+│   │   ├── app.js                     # 应用 CRUD + 更新 + 对话 + 仪表盘
 │   │   ├── project.js                 # 工程项目
 │   │   ├── knowledge.js               # 知识库 ✨
 │   │   ├── agents.js                  # Agent 工作流 ✨
@@ -541,7 +549,6 @@ mvn test -pl codeforge-code -am
 | **RAG 向量检索** | 接入 Milvus/Chroma，文档 Embedding + 语义相似度搜索 | knowledge |
 | **多模型支持** | 同时支持 DeepSeek / GLM / Qwen / GPT，前端可选 | code, admin |
 | **代码审查自动化** | 保存审查历史、对比修复前后代码、审查报告导出 | code |
-| **项目版本管理** | Git 集成，项目文件版本回滚 | code |
 | **单元测试生成** | AI 自动生成 JUnit/Vitest 测试代码 | agent |
 | **国际化 (i18n)** | 中英文切换，vue-i18n 集成 | frontend |
 

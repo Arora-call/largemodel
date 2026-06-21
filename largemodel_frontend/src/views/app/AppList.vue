@@ -51,6 +51,7 @@
         <div class="card-footer">
           <span class="card-date">{{ app.updatedAt?.substring(0, 10) || '-' }}</span>
           <div class="card-actions">
+            <button class="card-btn edit-btn" @click.stop="openRename(app)" title="重命名">✏️</button>
             <button class="card-btn download-btn" @click.stop="handleDownload(app)" title="下载">⬇</button>
             <button class="card-btn delete-btn" @click.stop="confirmDelete(app)" title="删除">🗑</button>
           </div>
@@ -150,6 +151,19 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- Rename dialog -->
+    <el-dialog v-model="renameVisible" title="重命名应用" width="420px" top="25vh">
+      <el-form @submit.prevent="handleRename">
+        <el-form-item label="应用名称">
+          <el-input v-model="renameName" placeholder="输入新名称" maxlength="200" clearable />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="renameVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleRename" :disabled="!renameName.trim()">确认</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -158,7 +172,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Download, Delete } from '@element-plus/icons-vue'
-import { listApplications, getApplication, deleteApplication, downloadApplication } from '@/api/app'
+import { listApplications, getApplication, deleteApplication, downloadApplication, updateApplication } from '@/api/app'
 import CodeViewer from '@/components/CodeViewer.vue'
 
 const router = useRouter()
@@ -187,6 +201,27 @@ function iconForFile(path) {
   const ext = path.split('.').pop()?.toLowerCase()
   const map = { vue: '🟩', js: '🟨', ts: '🟦', html: '🟧', css: '🟦', json: '📋', py: '🐍', java: '☕', xml: '📋', md: '📝' }
   return map[ext] || '📄'
+}
+
+const renameVisible = ref(false)
+const renameApp = ref(null)
+const renameName = ref('')
+
+function openRename(app) {
+  renameApp.value = app
+  renameName.value = app.name
+  renameVisible.value = true
+}
+
+async function handleRename() {
+  const name = renameName.value.trim()
+  if (!name || !renameApp.value) return
+  try {
+    await updateApplication(renameApp.value.id, { name })
+    ElMessage.success('已重命名')
+    renameVisible.value = false
+    fetchList()
+  } catch { ElMessage.error('重命名失败') }
 }
 
 function selectDetailFile(filePath) {
@@ -397,6 +432,11 @@ onMounted(fetchList)
   align-items: center;
   justify-content: center;
   transition: all var(--transition);
+}
+
+.edit-btn:hover {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: var(--warning);
 }
 
 .download-btn:hover {
