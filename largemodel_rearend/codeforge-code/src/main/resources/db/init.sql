@@ -1,7 +1,7 @@
 -- ============================================
 -- CodeForge（代码锻造）— 数据库初始化脚本
 -- 数据库: largemodel
--- 版本: v2.0 (微服务重构后)
+-- 版本: v2.2 (微服务拆分 + 监控日志)
 -- ============================================
 
 CREATE DATABASE IF NOT EXISTS `largemodel` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -92,8 +92,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消息表';
 
 -- ============================================
--- 5. 知识库文档表 ✨ (v2.0 新增)
--- 模块: codeforge-knowledge :8083
+-- 5. 知识库文档表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `knowledge_documents` (
     `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -117,8 +116,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_documents` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='知识库文档表';
 
 -- ============================================
--- 6. Agent 工作流表 ✨ (v2.0 新增)
--- 模块: codeforge-agent :8084
+-- 6. Agent 工作流表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `agent_workflows` (
     `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -137,11 +135,71 @@ CREATE TABLE IF NOT EXISTS `agent_workflows` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent工作流表';
 
 -- ============================================
+-- 7. AI 模型配置表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `model_configs` (
+    `id`               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `name`             VARCHAR(100) NOT NULL                COMMENT '显示名称',
+    `provider`         VARCHAR(50)  NOT NULL                COMMENT '提供商: deepseek/openai/zhipu/custom',
+    `base_url`         VARCHAR(500) NOT NULL                COMMENT 'API 端点',
+    `api_key_encrypted` VARCHAR(500) NOT NULL               COMMENT 'AES-256-GCM 加密的 API Key',
+    `model_name`       VARCHAR(100) NOT NULL                COMMENT '模型标识',
+    `temperature`      DOUBLE       DEFAULT 0.7             COMMENT '默认温度',
+    `max_tokens`       INT          DEFAULT 16384           COMMENT '最大输出 Token',
+    `is_enabled`       TINYINT      DEFAULT 1               COMMENT '是否启用 0/1',
+    `is_default`       TINYINT      DEFAULT 0               COMMENT '是否默认模型 0/1',
+    `sort_order`       INT          DEFAULT 0               COMMENT '排序权重',
+    `created_at`       DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`       DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_enabled` (`is_enabled`),
+    KEY `idx_default` (`is_default`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI模型配置表';
+
+-- ============================================
+-- 8. API 调用日志表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `api_call_logs` (
+    `id`         BIGINT       NOT NULL AUTO_INCREMENT,
+    `endpoint`   VARCHAR(200) DEFAULT NULL COMMENT '接口路径',
+    `user_id`    BIGINT       DEFAULT NULL COMMENT '调用用户',
+    `model_name` VARCHAR(100) DEFAULT NULL COMMENT '模型名称',
+    `token_used` INT          DEFAULT NULL COMMENT '消耗 Token',
+    `latency_ms` BIGINT       DEFAULT NULL COMMENT '响应延迟(ms)',
+    `success`    TINYINT      DEFAULT 1 COMMENT '是否成功',
+    `error_msg`  VARCHAR(500) DEFAULT NULL COMMENT '错误信息',
+    `created_at` DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_user` (`user_id`),
+    KEY `idx_time` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='API调用日志';
+
+-- ============================================
+-- 9. 操作日志表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `operation_logs` (
+    `id`            BIGINT       NOT NULL AUTO_INCREMENT,
+    `module`        VARCHAR(50)  DEFAULT NULL COMMENT '模块: admin/auth/code',
+    `action`        VARCHAR(50)  DEFAULT NULL COMMENT '操作: CREATE/UPDATE/DELETE',
+    `target`        VARCHAR(200) DEFAULT NULL COMMENT '操作对象',
+    `operator_id`   BIGINT       DEFAULT NULL COMMENT '操作人ID',
+    `operator_name` VARCHAR(100) DEFAULT NULL COMMENT '操作人用户名',
+    `detail`        TEXT         DEFAULT NULL COMMENT '详情',
+    `ip`            VARCHAR(50)  DEFAULT NULL COMMENT '请求IP',
+    `success`       TINYINT      DEFAULT 1 COMMENT '是否成功',
+    `created_at`    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_module` (`module`),
+    KEY `idx_operator` (`operator_id`),
+    KEY `idx_time` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作日志';
+
+-- ============================================
 -- 说明
 --
 -- 管理员账号由 DataInitializer 启动时自动创建
 -- 默认账号: admin / admin123（BCrypt加密由Java生成）
---
--- 角色管理当前走 User.role 单值枚举字段（USER/ADMIN）
--- 知识库文档 和 Agent 工作流 由 MyBatis-Plus 管理
+-- 管理员可在后台「模型配置」页面添加 API Key（AES-256 加密存储）
+-- API 调用日志由 AiCodeGenService 自动记录，用于监控大盘统计
+-- 操作日志通过 @LogRecord AOP 注解自动记录管理员操作
 -- ============================================

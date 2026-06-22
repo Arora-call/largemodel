@@ -6,15 +6,16 @@
  * 修改记录：
  *  2026-06-17 初始化代码
  */
-package org.example.controller;
+package org.example.admin.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.example.annotation.AuthCheck;
+import org.example.annotation.LogRecord;
 import org.example.dto.response.ApiResponse;
 import org.example.dto.response.PageResponse;
 import org.example.dto.response.UserInfoResponse;
 import org.example.entity.User;
-import org.example.service.AdminService;
+import org.example.admin.service.AdminService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,6 +51,7 @@ public class AdminController {
     /**
      * 修改用户状态（启用/禁用）
      */
+    @LogRecord(action = "UPDATE", target = "User status")
     @PutMapping("/users/{userId}/status")
     public ApiResponse<Void> updateUserStatus(@PathVariable Long userId,
                                                @RequestParam Integer status) {
@@ -60,6 +62,7 @@ public class AdminController {
     /**
      * 修改用户角色
      */
+    @LogRecord(action = "UPDATE", target = "User role")
     @PutMapping("/users/{userId}/role")
     public ApiResponse<Void> updateUserRole(@PathVariable Long userId,
                                              @RequestParam String role) {
@@ -70,6 +73,7 @@ public class AdminController {
     /**
      * 删除用户
      */
+    @LogRecord(action = "DELETE", target = "User")
     @DeleteMapping("/users/{userId}")
     public ApiResponse<Void> deleteUser(@PathVariable Long userId,
                                          @AuthenticationPrincipal User admin) {
@@ -80,6 +84,7 @@ public class AdminController {
     /**
      * 重置用户密码
      */
+    @LogRecord(action = "UPDATE", target = "User password")
     @PutMapping("/users/{userId}/password")
     public ApiResponse<Void> resetUserPassword(@PathVariable Long userId,
                                                 @RequestParam String newPassword) {

@@ -33,9 +33,11 @@ public final class LanguageUtil {
     /** 根据代码内容检测语言 */
     public static String detectByContent(String code) {
         if (code == null || code.isBlank()) return "text";
-        if (code.matches("(?s).*<template.*|<script.*")) return "vue";
+        // HTML 必须在 Vue 之前检测：Vue 的 <template> 也在 HTML 文件中出现
+        if (code.matches("(?s).*<!DOCTYPE\\s+html.*|<html[\\s>].*")) return "html";
+        // Vue SFC：包含 <template> 包裹（不含 DOCTYPE/html 标签）
+        if (code.matches("(?s).*<template[\\s>].*")) return "vue";
         if (code.matches("(?s).*public\\s+class.*|@RestController.*")) return "java";
-        if (code.matches("(?s).*<!DOCTYPE\\s+html.*|<html.*")) return "html";
         if (code.matches("(?s).*def\\s+\\w+\\s*\\(.*")) return "python";
         return "text";
     }

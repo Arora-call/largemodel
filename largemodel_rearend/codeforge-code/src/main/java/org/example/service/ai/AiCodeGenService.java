@@ -32,19 +32,21 @@ import java.util.*;
 public class AiCodeGenService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private final StreamingChatLanguageModel streamingModel;
+    private final DynamicModelProvider modelProvider;
     private final PromptTemplateService promptService;
     private final ConversationRepository conversationRepo;
     private final MessageRepository messageRepo;
     private final org.example.service.ProjectService projectService;
+    private final org.example.service.MonitorService monitorService;
+    private final org.example.mapper.ModelConfigMapper modelConfigMapper;
 
     /** SSE 流式代码生成 */
     public SseEmitter generateStream(GenerateCodeRequest request, Long userId) {
         boolean isEng = "ENGINEERING".equalsIgnoreCase(request.getType());
         List<ChatMessage> messages = promptService.buildMessages(
                 getSystemPrompt(request), request.getPrompt(), loadHistory(request.getConversationId()), isEng);
-        log.info("开始 SSE 流式生成, prompt={}", truncate(request.getPrompt(), 50));
-        return doStream(messages, raw -> {
+        log.info("开始 SSE 流式生成, prompt={}, modelId={}", truncate(request.getPrompt(), 50), request.getModelId());
+        return doStream(messages, request.getModelId(), raw -> {
             Long cid = getOrCreateConversation(request, userId);
             String userMsg = request.getOriginalPrompt() != null && !request.getOriginalPrompt().isBlank()
                     ? request.getOriginalPrompt() : request.getPrompt();
@@ -65,7 +67,7 @@ public class AiCodeGenService {
                 ? promptService.getProjectModifySystemPrompt(code)
                 : promptService.getCodeModifySystemPrompt(code);
         String up = "修改元素: " + request.getElementInfo() + "\n修改要求: " + request.getModifyPrompt();
-        return doStream(promptService.buildMessages(sp, up, null, false), raw -> {
+        return doStream(promptService.buildMessages(sp, up, null, false), null, raw -> {
             // 持久化修改对话到数据库
             Long cid = request.getConversationId();
             if (cid != null) {
@@ -91,7 +93,7 @@ public class AiCodeGenService {
         List<ChatMessage> messages = promptService.buildMessages(sp, request.getPrompt(),
                 loadHistory(request.getConversationId()), true);
         log.info("开始工程项目流式生成, prompt={}", truncate(request.getPrompt(), 50));
-        return doStream(messages, raw -> {
+        return doStream(messages, request.getModelId(), raw -> {
             Long cid = getOrCreateConversation(request, userId);
             String userMsg = request.getOriginalPrompt() != null && !request.getOriginalPrompt().isBlank()
                     ? request.getOriginalPrompt() : request.getPrompt();
@@ -313,16 +315,20 @@ public class AiCodeGenService {
         return result;
     }
 
-    private SseEmitter doStream(List<ChatMessage> messages,
+    private SseEmitter doStream(List<ChatMessage> messages, Long modelId,
                                  java.util.function.Function<String, Map<String, Object>> extra) {
         SseEmitter emitter = new SseEmitter(300_000L);
         java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
         Thread.ofVirtual().start(() -> {
             StringBuilder full = new StringBuilder();
+            long start = System.currentTimeMillis();
+            java.util.concurrent.atomic.AtomicLong firstTokenAt = new java.util.concurrent.atomic.AtomicLong(0);
             try {
-                streamingModel.chat(messages, new StreamingChatResponseHandler() {
+                StreamingChatLanguageModel model = modelProvider.getStreaming(modelId);
+                model.chat(messages, new StreamingChatResponseHandler() {
                     @Override public void onPartialResponse(String token) {
                         if (completed.get()) return;
+                        if (firstTokenAt.get() == 0) firstTokenAt.set(System.currentTimeMillis());
                         full.append(token);
                         try { emitter.send(SseEmitter.event().name("token").data(token)); }
                         catch (IOException e) {
@@ -344,10 +350,12 @@ public class AiCodeGenService {
                             emitter.send(SseEmitter.event().name("done").data(MAPPER.writeValueAsString(done)));
                             emitter.complete();
                             log.info("SSE 流式完成, 长度={}", raw.length());
+                            logCall(full.toString(), modelId, firstTokenAt.get() > 0 ? firstTokenAt.get() - start : System.currentTimeMillis() - start, true, null);
                         } catch (IOException e) {
                             log.debug("SSE done 发送失败, 客户端已断开");
                         } catch (Exception e) {
                             log.error("SSE done 处理异常: {}", e.getMessage());
+                            logCall(full.toString(), modelId, firstTokenAt.get() > 0 ? firstTokenAt.get() - start : 0, false, e.getMessage());
                         }
                     }
                     @Override public void onError(Throwable e) {
@@ -355,6 +363,7 @@ public class AiCodeGenService {
                         completed.set(true);
                         log.error("SSE 流式异常: {}", e.getMessage());
                         safeSendError(emitter, "生成失败: " + e.getMessage());
+                        logCall(full.toString(), modelId, 0, false, e.getMessage());
                         try { emitter.completeWithError(e); } catch (Exception ignored) {}
                     }
                 });
@@ -363,6 +372,7 @@ public class AiCodeGenService {
                 completed.set(true);
                 log.error("SSE 启动失败: {}", e.getMessage());
                 safeSendError(emitter, "服务内部错误: " + e.getMessage());
+                logCall("", modelId, 0, false, e.getMessage());
                 try { emitter.completeWithError(e); } catch (Exception ignored) {}
             }
         });
@@ -422,6 +432,23 @@ public class AiCodeGenService {
             return firstLine.replaceFirst("^\\s*//\\s*File:\\s*", "").trim();
         }
         return "";
+    }
+
+    /** 记录 API 调用到监控日志 */
+    private void logCall(String raw, Long modelId, long ttfbMs, boolean success, String error) {
+        try {
+            String model = "default";
+            if (modelId != null) {
+                var mc = modelConfigMapper.selectById(modelId);
+                if (mc != null) model = mc.getModelName();
+            } else {
+                var def = modelConfigMapper.findDefault().orElse(null);
+                if (def != null) model = def.getModelName();
+            }
+            int tokens = raw.isEmpty() ? 0 : raw.length() / 4;
+            monitorService.record("/api/ai/generate/stream", null, model, tokens,
+                    ttfbMs > 0 ? ttfbMs : 0, success, error);
+        } catch (Exception ignored) { /* monitoring shouldn't break main flow */ }
     }
 
     private String extractCode(String raw) {

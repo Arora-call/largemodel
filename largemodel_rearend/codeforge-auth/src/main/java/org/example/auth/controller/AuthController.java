@@ -6,7 +6,7 @@
  * 修改记录：
  *  2026-06-17 初始化代码
  */
-package org.example.controller;
+package org.example.auth.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,7 @@ import org.example.dto.response.ApiResponse;
 import org.example.dto.response.LoginResponse;
 import org.example.dto.response.UserInfoResponse;
 import org.example.entity.User;
-import org.example.service.AuthService;
+import org.example.auth.service.AuthService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;

@@ -21,6 +21,9 @@
           >
             <span class="history-title">{{ conv.title || '新对话' }}</span>
             <span class="history-time">{{ conv.messages.length }} 条消息</span>
+            <button class="history-delete" title="删除此对话" @click.stop="deleteSingleConv(conv)">
+              <span>&times;</span>
+            </button>
           </div>
         </div>
 
@@ -45,14 +48,25 @@
           <span class="logo-beta">Beta</span>
         </div>
         <div class="header-center">
-          <div class="model-badge">
+          <div class="model-badge" @click="showModelSelect = !showModelSelect" style="cursor:pointer">
             <span class="badge-dot"></span>
-            {{ modelName }}
+            {{ selectedModelName }}
+            <span style="font-size:10px;margin-left:4px">▾</span>
+          </div>
+          <div v-if="showModelSelect" class="model-dropdown">
+            <div v-if="availableModels.length === 0" class="model-dropdown-item muted">加载中...</div>
+            <div v-for="m in availableModels" :key="m.id" class="model-dropdown-item"
+                 :class="{ active: selectedModelId === m.id }"
+                 @click="selectModel(m)">
+              <span class="dropdown-model-name">{{ m.name }}<el-tag v-if="m.isDefault" size="small" type="success" effect="plain" style="margin-left:6px;font-size:10px">默认</el-tag></span>
+              <span class="dropdown-model-info">{{ m.provider }} / {{ m.modelName }}</span>
+            </div>
           </div>
         </div>
         <div class="header-right">
           <button class="btn-tool" title="复制全部" @click="copyCode(currentConv.codeOutput)"><span>&#128203;</span></button>
-          <button class="btn-tool" title="导出" @click="saveAsApplication"><span>&#128190;</span></button>
+          <button class="btn-tool" title="导出 Markdown" @click="exportConversation"><span>&#128196;</span></button>
+          <button class="btn-tool" title="保存到我的应用" @click="saveAsApplication"><span>&#128190;</span></button>
         </div>
       </header>
 
@@ -219,7 +233,7 @@ import { ref, reactive, computed, nextTick, watch, onBeforeUnmount, onMounted } 
 import { onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { generateCodeStream, modifyCodeStream } from '@/api/ai'
-import { saveApplication, listConversations, getMessages, clearConversations } from '@/api/app'
+import { saveApplication, listConversations, getMessages, clearConversations, deleteConversation } from '@/api/app'
 import CodeViewer from '@/components/CodeViewer.vue'
 import { renderMarkdown, copyToClipboard } from '@/utils/markdown'
 
@@ -246,6 +260,39 @@ const sidebarCollapsed = ref(false)
 const previewSubMode = ref('preview')
 const editSubMode = ref('preview')  // preview | edit
 const modelName = ref('glm-4.5-air')
+
+// 动态模型选择
+import { listEnabledModels } from '@/api/admin'
+const availableModels = ref([])
+const selectedModelId = ref(null)
+const selectedModelName = ref('默认模型')
+const showModelSelect = ref(false)
+
+const SAVED_MODEL_KEY = 'codeforge_selected_model'
+
+async function loadModels() {
+  try {
+    const res = await listEnabledModels()
+    availableModels.value = res.data || []
+    const saved = localStorage.getItem(SAVED_MODEL_KEY)
+    if (saved) {
+      const m = availableModels.value.find(x => x.id === Number(saved))
+      if (m) { selectedModelId.value = m.id; selectedModelName.value = m.name; return }
+    }
+    const def = availableModels.value.find(m => m.isDefault)
+    if (def) { selectedModelId.value = def.id; selectedModelName.value = def.name }
+    else if (availableModels.value.length > 0) {
+      selectedModelId.value = availableModels.value[0].id
+      selectedModelName.value = availableModels.value[0].name
+    }
+  } catch { /* server not available, use fallback */ }
+}
+function selectModel(m) {
+  selectedModelId.value = m.id
+  selectedModelName.value = m.name
+  showModelSelect.value = false
+  localStorage.setItem(SAVED_MODEL_KEY, String(m.id))
+}
 let abortController = null
 let modifyAbort = null
 
@@ -472,6 +519,7 @@ async function loadConversationsFromBackend() {
         if (local) {
           if (activeConvId.value === local.id) activeConvId.value = bc.id
           local.id = bc.id
+          local.backendId = bc.id
           if (bc.title && bc.title !== '新对话') local.title = bc.title
         }
       })
@@ -479,7 +527,7 @@ async function loadConversationsFromBackend() {
       const existingIds = new Set(conversations.map(c => c.id))
       res.data.forEach(c => {
         if (!existingIds.has(c.id)) {
-          conversations.push(reactive({ id: c.id, title: c.title || '新对话', messages: [], codeOutput: '' }))
+          conversations.push(reactive({ id: c.id, backendId: c.id, title: c.title || '新对话', messages: [], codeOutput: '' }))
         }
       })
       if (!activeConvId.value || !conversations.find(c => c.id === activeConvId.value)) {
@@ -493,21 +541,27 @@ async function loadConversationsFromBackend() {
   } catch { /* ignore */ }
 }
 
-onMounted(loadConversationsFromBackend)
+onMounted(() => { loadConversationsFromBackend(); loadModels() })
 async function switchConv(id) {
   activeConvId.value = id
-  // 切换对话时清空旧对话的折叠/预览状态
   Object.keys(folded).forEach(k => delete folded[k])
   Object.keys(previewing).forEach(k => delete previewing[k])
   selectedElement.value = null; modifyPrompt.value = ''
   scrollToBottom()
   nextTick(() => inputEl.value?.focus())
-  // 从后端加载该对话的消息
+  const conv = conversations.find(c => c.id === id)
+  if (!conv) return
+  // 如果已有消息（本地暂存），跳过加载；否则从后端加载
+  if (conv.messages.length > 0) {
+    const lastAi = [...conv.messages].reverse().find(m => m.role === 'AI')
+    conv.codeOutput = lastAi ? (parseAiResponse(lastAi.content || '').code || '') : ''
+    return
+  }
+  // 从后端加载消息（使用真实 backendId 或已是后端 ID）
+  const loadId = conv.backendId || id
   try {
-    const res = await getMessages(id)
-    const conv = conversations.find(c => c.id === id)
-    if (conv && res.data) {
-      conv.messages.length = 0
+    const res = await getMessages(loadId)
+    if (res.data) {
       res.data.forEach(m => {
         if (m.role === 'AI') {
           const parsed = parseAiResponse(m.content || '')
@@ -516,15 +570,23 @@ async function switchConv(id) {
           conv.messages.push({ role: 'USER', content: m.content, code: '', text: '', language: '' })
         }
       })
-      // 从消息中提取最后一个AI代码作为codeOutput
       const lastAi = [...conv.messages].reverse().find(m => m.role === 'AI')
-      if (lastAi) {
-        const parsed = parseAiResponse(lastAi.content || '')
-        conv.codeOutput = parsed.code || ''
-      }
+      if (lastAi) conv.codeOutput = parseAiResponse(lastAi.content || '').code || ''
     }
   } catch { /* ignore */ }
 }
+async function deleteSingleConv(conv) {
+  const idx = conversations.indexOf(conv)
+  if (idx === -1) return
+  conversations.splice(idx, 1)
+  if (activeConvId.value === conv.id) {
+    activeConvId.value = conversations[0]?.id || null
+  }
+  if (conv.backendId) {
+    try { await deleteConversation(conv.backendId) } catch { /* ignore */ }
+  }
+}
+
 async function clearHistory() {
   conversations.length = 0; streamText.value = '';
   Object.keys(previewing).forEach(k => delete previewing[k]);
@@ -617,11 +679,12 @@ function parseAiResponse(raw) {
 }
 
 function detectLang(code) {
-  if (/<template|<script|<style/i.test(code)) return 'vue'
+  // HTML 优先检测：含 <html> 或 <!DOCTYPE>，且不含 <template>（否则是 Vue SFC）
+  if (/<!DOCTYPE html|<html[\s>]/i.test(code) && !/<template[\s>]/i.test(code)) return 'html'
+  // Vue SFC：含 <template> 标签包裹
+  if (/<template[\s>]/i.test(code)) return 'vue'
   if (/public\s+class|@RestController|@Service|@Autowired|import\s+java/i.test(code)) return 'java'
   if (/def\s+\w+\s*\(|import\s+\w+|class\s+\w+:|if\s+__name__/i.test(code) && !/public class/i.test(code)) return 'python'
-  if (/<!DOCTYPE html|<html|<div|<span/i.test(code) && !/<template/i.test(code)) return 'html'
-  if (/console\.log|const\s+\w+\s*=\s*(require|function|\(.*=>)|export\s+(default|const)/i.test(code)) return 'javascript'
   if (/#include|int\s+main|printf|scanf/i.test(code)) return 'c'
   return 'text'
 }
@@ -647,7 +710,7 @@ async function handleGenerate() {
 
   try {
     await generateCodeStream(
-      { prompt: fullPrompt, originalPrompt: rawPrompt, type: genType.value, language: detectPromptLang(rawPrompt), conversationId: conv.backendId || null },
+      { prompt: fullPrompt, originalPrompt: rawPrompt, type: genType.value, language: detectPromptLang(rawPrompt), conversationId: conv.backendId || null, modelId: selectedModelId.value },
       {
         signal: abortController.signal,
         onToken: (t) => { streamText.value += t; scrollToBottom() },
@@ -699,6 +762,26 @@ async function handleModify() {
   } catch (err) { ElMessage.error(err.message || '网络错误'); modifying.value = false }
 }
 
+async function exportConversation() {
+  const conv = currentConv.value
+  if (!conv.backendId) return ElMessage.warning('请先生成对话内容')
+  const token = localStorage.getItem('token')
+  try {
+    const resp = await fetch(`/api/conversations/${conv.backendId}/export`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+    if (!resp.ok) throw new Error('导出失败')
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `conversation_${conv.backendId}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('已导出')
+  } catch { ElMessage.error('导出失败') }
+}
+
 async function saveAsApplication() {
   const code = currentConv.value?.codeOutput
   if (!code) { ElMessage.warning('没有可保存的代码'); return }
@@ -739,11 +822,14 @@ function scrollToGroup(i) { activeGroup.value = i; scrollToBottom() }
 .chat-history { flex: 1; overflow-y: auto; padding: 8px; }
 .history-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; padding: 8px 8px 4px; }
 .history-empty { padding: 16px 8px; color: var(--text-dim); font-size: 13px; text-align: center; }
-.history-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: all .2s; margin-bottom: 2px; }
+.history-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: all .2s; margin-bottom: 2px; position: relative; }
 .history-item:hover { background: rgba(124,138,255,0.06); }
+.history-item:hover .history-delete { opacity: 1; }
 .history-item.active { background: rgba(124,138,255,0.12); border-left: 2px solid var(--accent); }
-.history-title { display: block; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-title { display: block; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 20px; }
 .history-time { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.history-delete { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; border: none; background: transparent; color: var(--text-dim); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all .15s; }
+.history-delete:hover { background: var(--danger-bg); color: var(--danger); }
 .sidebar-bottom { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
 .btn-icon { width: 36px; height: 36px; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all .2s; }
 .btn-icon:hover { background: rgba(255,255,255,0.04); color: var(--text); }
@@ -756,8 +842,15 @@ function scrollToGroup(i) { activeGroup.value = i; scrollToBottom() }
 .logo-text { font-size: 16px; font-weight: 600; color: #e5e7eb; letter-spacing: -0.5px; }
 .logo-beta { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(129,140,248,0.15); color: var(--accent); }
 .header-center { display: flex; align-items: center; }
-.model-badge { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; color: var(--text); }
+.model-badge { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; color: var(--text); position: relative; user-select: none; }
 .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+.model-dropdown { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 100; min-width: 280px; padding: 6px 0; }
+.model-dropdown-item { padding: 10px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: background .15s; }
+.model-dropdown-item:hover { background: var(--bg-hover); }
+.model-dropdown-item.active { background: var(--accent-bg); }
+.model-dropdown-item.muted { color: var(--text-dim); cursor: default; }
+.dropdown-model-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+.dropdown-model-info { font-size: 11px; color: var(--text-dim); }
 .header-right { display: flex; gap: 4px; }
 .btn-tool { width: 32px; height: 32px; background: transparent; color: var(--text-dim); border: none; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .btn-tool:hover { background: rgba(255,255,255,0.06); color: var(--text); }

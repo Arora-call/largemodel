@@ -36,4 +36,6 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     @Transactional
     @Query("UPDATE Conversation c SET c.status = 0 WHERE c.userId = :userId AND c.status = 1")
     void deactivateByUserId(@Param("userId") Long userId);
+
+    long countByUserIdAndStatus(Long userId, Integer status);
 }

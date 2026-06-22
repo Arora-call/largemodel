@@ -8,6 +8,7 @@
  */
 package org.example.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.response.ApiResponse;
 import org.example.entity.Conversation;
@@ -15,9 +16,15 @@ import org.example.entity.Message;
 import org.example.entity.User;
 import org.example.repository.ConversationRepository;
 import org.example.repository.MessageRepository;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -79,5 +86,56 @@ public class ConversationController {
     public ApiResponse<Void> clearAll(@AuthenticationPrincipal User user) {
         convRepo.deactivateByUserId(user.getId());
         return ApiResponse.msg("已清空");
+    }
+
+    /** 导出对话为 Markdown 文件 */
+    @GetMapping("/{id}/export")
+    public void export(@PathVariable Long id,
+                       @AuthenticationPrincipal User user,
+                       HttpServletResponse response) throws IOException {
+        // 权限校验
+        Conversation conv = convRepo.findById(id).orElse(null);
+        if (conv == null || !conv.getUserId().equals(user.getId())) {
+            response.sendError(403, "无权访问此对话");
+            return;
+        }
+        List<Message> msgs = msgRepo.findByConversationIdOrderByCreatedAtAsc(id);
+        String title = conv.getTitle() != null ? conv.getTitle() : "对话记录";
+        String model = conv.getModel() != null ? conv.getModel() : "AI";
+        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+        String filename = "conversation_" + id + ".md";
+        response.setContentType("text/markdown; charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"" + filename + "\"");
+
+        PrintWriter w = response.getWriter();
+        w.println("# " + escapeMarkdown(title));
+        w.println("> 导出时间: " + date + " | 模型: " + model);
+        w.println();
+
+        for (Message m : msgs) {
+            String role = m.getRole();
+            String content = m.getContent() != null ? m.getContent() : "";
+            if ("USER".equalsIgnoreCase(role)) {
+                w.println("## 用户");
+                w.println();
+                w.println(content);
+            } else {
+                w.println("## AI");
+                w.println();
+                w.println(content);
+            }
+            w.println();
+            w.println("---");
+            w.println();
+        }
+        w.flush();
+    }
+
+    private String escapeMarkdown(String text) {
+        if (text == null) return "";
+        // Markdown 标题中不能有 #
+        return text.replace("#", "&#35;");
     }
 }

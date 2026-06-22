@@ -28,7 +28,7 @@ export function getModelDistribution(params) {
   return request.get('/admin/stats/models', { params })
 }
 
-// 操作日志（已移到 admin/logs 复用）
+// 操作日志
 export function getOperationLogs(params) {
-  return request.get('/admin/logs', { params })
+  return request.get('/admin/logs', { params: { page: params.page || 0, size: params.size || 20, level: params.level, keyword: params.keyword } })
 }

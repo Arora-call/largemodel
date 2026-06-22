@@ -48,3 +48,34 @@ export function resetUserPassword(userId, newPassword) {
 export function getStats() {
   return request.get('/admin/stats')
 }
+
+// ====== AI 模型配置 ✨ ======
+
+/** 获取全部模型列表（管理用） */
+export function listModels() {
+  return request.get('/admin/models')
+}
+/** 获取单个模型详情 */
+export function getModel(id) {
+  return request.get(`/admin/models/${id}`)
+}
+/** 新增模型 */
+export function createModel(data) {
+  return request.post('/admin/models', data)
+}
+/** 更新模型 */
+export function updateModel(id, data) {
+  return request.put(`/admin/models/${id}`, data)
+}
+/** 删除模型 */
+export function deleteModel(id) {
+  return request.delete(`/admin/models/${id}`)
+}
+/** 测试模型连接 */
+export function testModelConnection(id) {
+  return request.post(`/admin/models/${id}/test`)
+}
+/** 获取已启用模型列表（前端 AI 对话页用，apiKey 已脱敏） */
+export function listEnabledModels() {
+  return request.get('/admin/models/enabled')
+}

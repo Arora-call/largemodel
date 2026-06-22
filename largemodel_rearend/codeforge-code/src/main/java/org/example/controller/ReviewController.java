@@ -17,6 +17,7 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.request.CodeReviewRequest;
+import org.example.service.ai.DynamicModelProvider;
 import org.example.service.ai.PromptTemplateService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -36,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ReviewController {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private final StreamingChatLanguageModel streamingModel;
+    private final DynamicModelProvider modelProvider;
     private final PromptTemplateService promptService;
 
     /** SSE 流式代码审查 */
@@ -63,7 +64,8 @@ public class ReviewController {
         StringBuilder full = new StringBuilder();
         AtomicBoolean completed = new AtomicBoolean(false);
 
-        streamingModel.chat(messages, new StreamingChatResponseHandler() {
+        StreamingChatLanguageModel model = modelProvider.getDefaultStreaming();
+        model.chat(messages, new StreamingChatResponseHandler() {
             @Override
             public void onPartialResponse(String token) {
                 if (!completed.get()) {

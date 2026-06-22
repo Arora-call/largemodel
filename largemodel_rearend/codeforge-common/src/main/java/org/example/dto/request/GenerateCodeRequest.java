@@ -27,4 +27,7 @@ public class GenerateCodeRequest {
 
     /** 用户原始提问（不含代码上下文），用于保存对话记录 */
     private String originalPrompt;
+
+    /** AI 模型配置 ID（null 则使用默认模型） */
+    private Long modelId;
 }

@@ -135,6 +135,7 @@ function convertSetupScript(code) {
  * 内联编译所有 .vue 文件，无需额外构建工具
  */
 export function buildVueCDNHtml(filesMap, options = {}) {
+  if (!filesMap || typeof filesMap !== 'object') return null
   const { editMode = false } = options
   const entries = Object.entries(filesMap)
   if (entries.length === 0) return null
@@ -256,7 +257,6 @@ export function buildVueCDNHtml(filesMap, options = {}) {
   lines.push('</head>')
   lines.push('<body>')
   lines.push('  <div id="app"></div>')
-  lines.push('  <div id="__err"></div>')
   lines.push('  <script>')
   lines.push('    // 图片加载失败兜底：替换为纯色占位图')
   lines.push('    document.addEventListener("error", function(e) {')
@@ -274,12 +274,9 @@ export function buildVueCDNHtml(filesMap, options = {}) {
   lines.push('  </scr' + 'ipt>')
   lines.push('  <script>')
   lines.push('    (function() {')
+  lines.push('      var __errShown = false;')
   lines.push('      function showErr(e) {')
-  lines.push('        var el = document.getElementById("__err");')
-  lines.push('        if (el) {')
-  lines.push('          el.style.display = "block";')
-  lines.push('          el.textContent = "预览错误: " + (e.message || String(e));')
-  lines.push('        }')
+  lines.push('        if (__errShown) return; __errShown = true;')
   lines.push('        console.error(e);')
   lines.push('        try { window.parent.postMessage({ type: "preview-error", payload: { message: e.message || String(e), stack: e.stack || "" } }, "*"); } catch(_) {}')
   lines.push('      }')

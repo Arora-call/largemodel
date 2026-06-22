@@ -7,6 +7,19 @@
         <span class="logo-text">项目创建</span>
       </div>
       <div class="header-right">
+        <div class="model-selector" style="position:relative;margin-right:8px">
+          <span class="model-btn" @click="showModelSelect = !showModelSelect">
+            🤖 {{ selectedModelName }} ▾
+          </span>
+          <div v-if="showModelSelect" class="model-dropdown">
+            <div v-if="availableModels.length === 0" class="model-item muted">加载中...</div>
+            <div v-for="m in availableModels" :key="m.id" class="model-item"
+                 :class="{ active: selectedModelId === m.id }" @click="selectProjectModel(m)">
+              {{ m.name }}<el-tag v-if="m.isDefault" size="small" type="success" effect="plain" style="margin-left:4px;font-size:9px">默认</el-tag>
+              <span style="font-size:10px;color:var(--text-dim);display:block">{{ m.provider }}</span>
+            </div>
+          </div>
+        </div>
         <button class="btn-hdr btn-new" @click="startNewProject">+ 新建项目</button>
         <button class="btn-hdr" :disabled="!files.length" @click="handleSave">
           <el-icon><FolderChecked /></el-icon> 保存项目
@@ -188,6 +201,7 @@ import SandboxPreview from '@/components/SandboxPreview.vue'
 import { generateProject, getProjectTree, getProjectFile, downloadProjectZip, saveProject, modifyProjectStream, saveProjectFiles } from '@/api/project'
 import { listConversations, deleteProject, getApplication } from '@/api/app'
 import { preparePreviewFiles } from '@/utils/jinja2Compat'
+import { listEnabledModels } from '@/api/admin'
 
 const route = useRoute()
 const inputText = ref('')
@@ -201,6 +215,38 @@ const projectType = ref('frontend')
 const projectTitle = ref('')     // 项目标题（用于保存）
 // 多项目支持
 const projects = ref([])
+
+// 模型选择
+const availableModels = ref([])
+const selectedModelId = ref(null)
+const selectedModelName = ref('默认模型')
+const showModelSelect = ref(false)
+
+const PROJECT_MODEL_KEY = 'codeforge_project_model'
+
+async function loadProjectModels() {
+  try {
+    const res = await listEnabledModels()
+    availableModels.value = res.data || []
+    const saved = localStorage.getItem(PROJECT_MODEL_KEY)
+    if (saved) {
+      const m = availableModels.value.find(x => x.id === Number(saved))
+      if (m) { selectedModelId.value = m.id; selectedModelName.value = m.name; return }
+    }
+    const def = availableModels.value.find(m => m.isDefault)
+    if (def) { selectedModelId.value = def.id; selectedModelName.value = def.name }
+    else if (availableModels.value.length > 0) {
+      selectedModelId.value = availableModels.value[0].id
+      selectedModelName.value = availableModels.value[0].name
+    }
+  } catch { /* ignore */ }
+}
+function selectProjectModel(m) {
+  selectedModelId.value = m.id
+  selectedModelName.value = m.name
+  showModelSelect.value = false
+  localStorage.setItem(PROJECT_MODEL_KEY, String(m.id))
+}
 
 const editMode = ref(false)
 let abortController = null
@@ -660,7 +706,7 @@ async function handleGenerate() {
 
   try {
     await generateProject(
-      { prompt: userPrompt, type: 'ENGINEERING', language: 'text' },
+      { prompt: userPrompt, type: 'ENGINEERING', language: 'text', modelId: selectedModelId.value },
       {
         signal: abortController.signal,
         onToken: (t) => { streamText.value += t },
@@ -734,6 +780,7 @@ async function handleDownload() {
 }
 
 onMounted(async () => {
+  await loadProjectModels()
   await loadProjectsFromBackend()
   // 从"我的应用"跳转过来 → 自动加载对应项目
   const pid = route.query.projectId
@@ -812,6 +859,14 @@ onBeforeUnmount(() => {
 .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .logo-text { font-size: 15px; font-weight: 600; color: #e5e7eb; }
 .header-right { display: flex; gap: 8px; }
+.model-selector { display: flex; align-items: center; }
+.model-btn { display: flex; align-items: center; gap: 4px; padding: 6px 12px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.model-btn:hover { border-color: var(--accent); }
+.model-dropdown { position: absolute; top: 36px; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 200; min-width: 220px; padding: 4px 0; }
+.model-item { padding: 8px 14px; font-size: 13px; color: var(--text-primary); cursor: pointer; transition: background .15s; }
+.model-item:hover { background: var(--bg-hover); }
+.model-item.active { background: var(--accent-bg); color: var(--accent); }
+.model-item.muted { color: var(--text-dim); cursor: default; }
 .btn-hdr { display: flex; align-items: center; gap: 4px; padding: 6px 14px; background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; transition: all .15s; }
 .btn-hdr:hover:not(:disabled) { background: rgba(124,138,255,0.1); border-color: var(--accent); }
 .btn-hdr:disabled { opacity: 0.4; cursor: default; }

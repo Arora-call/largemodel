@@ -6,7 +6,7 @@
  * 修改记录：
  *  2026-06-17 初始化代码
  */
-package org.example.service;
+package org.example.auth.service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.config.JwtUtil;

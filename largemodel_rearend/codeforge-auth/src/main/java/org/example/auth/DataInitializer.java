@@ -4,7 +4,7 @@
  * 作者：yx
  * 创建时间：2026-06-17
  */
-package org.example.config;
+package org.example.auth;
 
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.User;

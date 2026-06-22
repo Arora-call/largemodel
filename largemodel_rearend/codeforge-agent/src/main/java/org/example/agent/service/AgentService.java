@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.agent.mapper.AgentWorkflowMapper;
 import org.example.entity.AgentWorkflow;
+import org.example.service.ai.DynamicModelProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -34,7 +35,7 @@ public class AgentService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final AgentWorkflowMapper workflowMapper;
-    private final StreamingChatLanguageModel streamingModel;
+    private final DynamicModelProvider modelProvider;
 
     /** Agent 角色定义 */
     private static final Map<String, String> AGENT_ROLES = Map.of(
@@ -121,7 +122,8 @@ public class AgentService {
                     StringBuilder agentOutput = new StringBuilder();
                     AtomicBoolean agentDone = new AtomicBoolean(false);
 
-                    streamingModel.chat(messages, new StreamingChatResponseHandler() {
+                    StreamingChatLanguageModel model = modelProvider.getDefaultStreaming();
+                    model.chat(messages, new StreamingChatResponseHandler() {
                         @Override public void onPartialResponse(String token) {
                             if (agentDone.get() || failed.get()) return;
                             agentOutput.append(token);
