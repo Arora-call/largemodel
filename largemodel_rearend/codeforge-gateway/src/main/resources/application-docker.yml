@@ -1,0 +1,30 @@
+# Docker 环境 — 使用 Compose 服务名而非 localhost
+spring:
+  cloud:
+    gateway:
+      routes:
+        # Auth Service (:8081)
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/api/auth/**,/api/user/**
+        # Code Service (:8082)
+        - id: code-service
+          uri: http://code-service:8082
+          predicates:
+            - Path=/api/ai/**,/api/projects/**,/api/applications/**,/api/conversations/**,/api/dashboard/**
+        # Knowledge Service (:8083)
+        - id: knowledge-service
+          uri: http://knowledge-service:8083
+          predicates:
+            - Path=/api/knowledge/**
+        # Agent Service (:8084)
+        - id: agent-service
+          uri: http://agent-service:8084
+          predicates:
+            - Path=/api/agents/**
+        # Admin Service (:8085)
+        - id: admin-service
+          uri: http://admin-service:8085
+          predicates:
+            - Path=/api/admin/**
