@@ -516,6 +516,20 @@ mvn test -pl codeforge-auth -am
 | `PromptTemplateService.java` | code | 5 套 System Prompt |
 | `AiCodeGenService.java` | code | SSE 流式核心 |
 
+### 12.3 Docker 关键文件
+
+| 文件 | 位置 | 职责 |
+|------|------|------|
+| `docker-compose.yml` | 项目根目录 | 10 服务编排（MySQL / Redis / 6 后端 / 1 前端） |
+| `docker-build.sh` | 项目根目录 | 全容器化一键构建（docker://maven + docker://node） |
+| `.env` | 项目根目录（自建） | 环境变量（`OPENAI_API_KEY`、端口、密码） |
+| `Dockerfile` | `largemodel_rearend/` | 通用 Spring Boot 镜像（temurin:21-jre-alpine），`ARG MODULE` 区分服务 |
+| `Dockerfile` | `largemodel_frontend/` | 多阶段构建（Node:22-alpine 编译 → Nginx:1.25-alpine 运行） |
+| `nginx.conf` | `largemodel_frontend/` | SPA 路由 + `/api/` 反代 Gateway + SSE 直通（`proxy_buffering off`） |
+| `application-docker.yml` | `codeforge-gateway/src/main/resources/` | Gateway Docker profile — 路由 URI 使用 Compose 服务名（`http://auth-service:8081` 等） |
+
+> 部署步骤详见 **[Deployment.md](Deployment.md)**。
+
 ---
 
 ## 十三、后续规划
