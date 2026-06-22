@@ -1,6 +1,6 @@
 # CodeForge（代码锻造）— 大模型代码应用生成平台
 
-> 作者：yx | 更新时间：2026-06-21（微服务拆分完成，P0 核心功能就绪）
+> 作者：yx | 更新时间：2026-06-22（测试修复 + 配置规范化，19 个集成测试全部通过）
 
 ---
 
@@ -41,6 +41,14 @@
 - **AI 驱动**：LangChain4j + 多模型动态切换，SSE 流式输出
 - **安全防护**：AES-256-GCM 加密存储 API Key，接口限流防滥用
 - **容器化部署**：Docker Compose 一键启动 10 个服务
+
+### 2026-06-22 更新
+
+- 🧪 **测试修复**：19 个集成测试修复并通过，测试从 codeforge-code 迁至 codeforge-auth（与实际 Controller 同模块）
+- 🔧 **配置修复**：修复 `LangChain4jConfig` 测试环境下因 `OPENAI_API_KEY` 缺失导致上下文加载失败的问题
+- 📐 **YAML 规范化**：`application.yml` 中 Redis 配置从 `langchain4j` 下移至正确的 `spring.data.redis` 位置
+- 🧹 **代码清理**：删除 `codeforge-code` 中重复的 `UserMapper.java`（统一使用 `codeforge-common` 中的版本）
+- 📦 **扫描范围**：`AuthApplication.scanBasePackages` 扩展为 `org.example`，确保 `GlobalExceptionHandler` 等组件被加载
 
 ### 2026-06-21 更新
 
@@ -154,7 +162,7 @@ largemodel_rearend/
 |------|------|
 | codeforge-common | JPA + MyBatis-Plus + Validation + Security + AOP + JWT + LangChain4j |
 | codeforge-gateway | Spring Cloud Gateway |
-| codeforge-auth | Common + Web + Security + MySQL + JPA |
+| codeforge-auth | Common + Web + Security + MySQL + JPA + H2 (test) |
 | codeforge-code | Common + Web + Security + MySQL + Redis |
 | codeforge-knowledge | Common + Web + Security + MySQL |
 | codeforge-agent | Common + Web + Security + MySQL |
@@ -435,14 +443,23 @@ docker compose up -d --build
 # → http://localhost
 ```
 
+> 详细部署步骤（Ubuntu/VMware 环境、分步构建、故障排查等）见 **[Deployment.md](Deployment.md)**。
+
 ### 10.3 测试
 
 ```bash
 cd largemodel_rearend
 set JAVA_HOME=D:\Java\jdk-21
-mvn test -pl codeforge-code -am
+mvn test -pl codeforge-auth -am
 # → 19 tests: AuthControllerTest (13) + UserControllerTest (6)
 ```
+
+测试使用 **H2 内存数据库**（MySQL 兼容模式），无需启动真实 MySQL/Redis。测试覆盖：
+
+| 测试类 | 用例数 | 覆盖场景 |
+|--------|--------|---------|
+| `AuthControllerTest` | 13 | 注册（成功/重复/缺字段/短用户名）、登录（成功/密码错/用户不存在）、当前用户（有Token/无Token/无效Token）、找回密码（成功/邮箱错/用户不存在） |
+| `UserControllerTest` | 6 | 获取用户信息（已认证/无Token）、更新信息（全字段/部分更新）、修改密码（成功/原密码错误） |
 
 ---
 

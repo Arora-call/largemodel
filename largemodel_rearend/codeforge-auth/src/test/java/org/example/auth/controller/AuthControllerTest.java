@@ -4,11 +4,10 @@
  * 作者：yx
  * 创建时间：2026-06-18
  */
-package org.example.controller;
+package org.example.auth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.config.JwtUtil;
-import org.example.config.TestRedisConfig;
 import org.example.dto.request.ForgetPasswordRequest;
 import org.example.dto.request.LoginRequest;
 import org.example.dto.request.RegisterRequest;
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,7 +31,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
-@Import(TestRedisConfig.class)
 class AuthControllerTest {
 
     @Autowired

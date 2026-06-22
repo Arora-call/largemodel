@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-@SpringBootApplication(scanBasePackages = { "org.example.auth", "org.example.mapper", "org.example.config" })
+@SpringBootApplication(scanBasePackages = { "org.example" })
 @EnableJpaRepositories("org.example.repository")
 @EntityScan("org.example.entity")
 public class AuthApplication {
