@@ -21,6 +21,12 @@
             <artifactId>spring-cloud-starter-gateway</artifactId>
         </dependency>
 
+        <!-- Nacos Discovery (for dynamic routing) -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
         <!-- JWT (for gateway-level auth verification) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

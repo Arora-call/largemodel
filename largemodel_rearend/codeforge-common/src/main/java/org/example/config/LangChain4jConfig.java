@@ -4,8 +4,7 @@
  * 作者：yx
  * 创建时间：2026-06-17
  * 修改记录：
- *  2026-06-17 初始化代码，支持 OpenAI / Ollama 双 Provider
- *  2026-06-17 简化为仅 OpenAI，API Key 从环境变量读取
+ *  2026-06-17 初始化代码，支持 OpenAI，API Key 从环境变量读取
  *  2026-06-17 新增 baseUrl 支持代理/兼容端点
  */
 package org.example.config;

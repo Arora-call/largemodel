@@ -1,6 +1,6 @@
 # CodeForge（代码锻造）— 大模型代码应用生成平台
 
-> 作者：yx | 更新时间：2026-06-22（测试修复 + 配置规范化，19 个集成测试全部通过）
+> 作者：yx | 更新时间：2026-06-23（Nacos 注册配置中心接入）
 
 ---
 
@@ -42,6 +42,14 @@
 - **安全防护**：AES-256-GCM 加密存储 API Key，接口限流防滥用
 - **容器化部署**：Docker Compose 一键启动 10 个服务
 
+### 2026-06-23 更新
+
+- 🔗 **Nacos 接入**：全服务接入 Nacos 3.1.2 注册中心（:8848），支持服务发现 + 配置管理
+- 📋 **配置中心**：5 业务服务集成 Nacos Config，支持 `spring.config.import` 动态拉取配置
+- 🚪 **Gateway 注册**：网关接入 Nacos Discovery，为后续 `lb://` 负载均衡路由做准备
+- 🔇 **日志修复**：禁用 Nacos 内置 Logback 配置（`nacos.logging.default.config.enabled=false`），消除 CONFIG_LOG_FILE Appender 冲突
+- 🔧 **服务名补全**：`codeforge-code` 补充缺失的 `spring.application.name: codeforge-code`
+
 ### 2026-06-22 更新
 
 - 🧪 **测试修复**：19 个集成测试修复并通过，测试从 codeforge-code 迁至 codeforge-auth（与实际 Controller 同模块）
@@ -69,6 +77,8 @@
 |------|------|------|
 | 后端框架 | Spring Boot | 3.5.4 |
 | 微服务 | Spring Cloud Gateway | 2025.0.0 |
+| 注册配置中心 | Nacos Server | 3.1.2 |
+| 服务治理 | Spring Cloud Alibaba | 2023.0.3.2 |
 | JDK | Java | 21 (LTS) |
 | ORM | JPA + MyBatis-Plus | 3.5.9 (并行过渡) |
 | 数据库 | MySQL | 8.0 |
@@ -114,6 +124,10 @@
      └─────────┴──────────────┴─────────────┴──────────┘
                                │
                     ┌──────────▼───────────┐
+                    │   Nacos :8848         │
+                    │   注册中心 + 配置中心   │
+                    └──────────────────────┘
+                    ┌──────────▼───────────┐
                     │   MySQL :3306         │
                     │   Redis :6379         │
                     └──────────────────────┘
@@ -133,8 +147,8 @@
 | **对话导出** | ✅ | 一键导出 Markdown、单对话删除 |
 | **接口限流** | ✅ | AI 5 QPS、登录 20 QPS，超限返回 429 |
 | **应用管理** | ✅ | CRUD、重命名、分页搜索、语言筛选、封面图、下载 |
-| **知识库** | ✅ | 文档上传、全文搜索、集合管理、向量化预留 |
-| **Agent 工作流** | ✅ | 5 Agent 链式编排、SSE 分阶段执行、任务追踪 |
+| **知识库** |  | 文档上传、全文搜索、集合管理、向量化预留 |
+| **Agent 工作流** |  | 5 Agent 链式编排、SSE 分阶段执行、任务追踪 |
 | **仪表盘** | ✅ | 项目数 + 对话数 + 角色 + 用户数（管理员） |
 | **管理后台** | ✅ | 用户管理、模型配置（含测试连接）、系统日志 |
 | **对话管理** | ✅ | MySQL 持久化、类型隔离 (NATIVE/ENGINEERING) |
@@ -161,12 +175,12 @@ largemodel_rearend/
 | 模块 | 依赖 |
 |------|------|
 | codeforge-common | JPA + MyBatis-Plus + Validation + Security + AOP + JWT + LangChain4j |
-| codeforge-gateway | Spring Cloud Gateway |
-| codeforge-auth | Common + Web + Security + MySQL + JPA + H2 (test) |
-| codeforge-code | Common + Web + Security + MySQL + Redis |
-| codeforge-knowledge | Common + Web + Security + MySQL |
-| codeforge-agent | Common + Web + Security + MySQL |
-| codeforge-admin | Common + Web + Security + MySQL + JPA |
+| codeforge-gateway | Spring Cloud Gateway + Nacos Discovery |
+| codeforge-auth | Common + Web + Security + MySQL + JPA + H2 (test) + Nacos Discovery/Config |
+| codeforge-code | Common + Web + Security + MySQL + Redis + Nacos Discovery/Config |
+| codeforge-knowledge | Common + Web + Security + MySQL + Nacos Discovery/Config |
+| codeforge-agent | Common + Web + Security + MySQL + Nacos Discovery/Config |
+| codeforge-admin | Common + Web + Security + MySQL + JPA + Nacos Discovery/Config |
 
 ### Gateway 路由表
 
@@ -410,7 +424,8 @@ DynamicModelProvider.getStreaming(modelId)
 ### 10.1 本地开发
 
 ```bash
-# 前置：MySQL 8 + Redis 7 已启动
+# 前置：MySQL 8 + Redis 7 + Nacos 3.1.2 已启动
+#   Nacos 启动：bin/startup.cmd -m standalone  （:8848，用户/密码: nacos/123456）
 
 # 1. 重建数据库
 #    MySQL 中执行: SOURCE .../codeforge-code/src/main/resources/db/init.sql;
@@ -420,13 +435,13 @@ set JAVA_HOME=D:\Java\jdk-21
 cd largemodel_rearend
 mvn compile -q
 
-# 3. 启动服务（5 个终端）
-mvn spring-boot:run -pl codeforge-gateway     # :8080
+# 3. 启动服务（6 个终端，按依赖顺序）
 mvn spring-boot:run -pl codeforge-auth        # :8081
 mvn spring-boot:run -pl codeforge-code        # :8082
+mvn spring-boot:run -pl codeforge-knowledge   # :8083（可选）
 mvn spring-boot:run -pl codeforge-agent       # :8084
 mvn spring-boot:run -pl codeforge-admin       # :8085
-# knowledge :8083 可选
+mvn spring-boot:run -pl codeforge-gateway     # :8080（最后启动）
 
 # 4. 前端
 cd largemodel_frontend
@@ -515,6 +530,7 @@ mvn test -pl codeforge-auth -am
 | `AesUtil.java` | common | AES-256-GCM 加密 |
 | `PromptTemplateService.java` | code | 5 套 System Prompt |
 | `AiCodeGenService.java` | code | SSE 流式核心 |
+| `application.yml` | 各服务模块 | 业务配置 + Nacos 注册/配置地址 |
 
 ### 12.3 Docker 关键文件
 
@@ -542,7 +558,7 @@ mvn test -pl codeforge-auth -am
 | Sentinel 流控 | ✅ | Gateway 全局过滤器 |
 | API Key 管理 | ✅ | AES-256 加密 + 动态切换 + 测试连接 |
 | 对话导出 | ✅ | 导出 Markdown + 单对话删除 |
-| **Nacos 注册中心** | ⬜ | 服务注册发现 + 配置中心 |
+| **Nacos 注册配置中心** | ✅ | 6 服务注册发现 + 5 服务配置管理 |
 
 ### 🟡 P1 — 中优先级
 

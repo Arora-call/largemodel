@@ -16,6 +16,8 @@ import org.example.mapper.OperationLogMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 
@@ -26,7 +28,6 @@ import java.time.LocalDateTime;
 public class LogAspect {
 
     private final OperationLogMapper logMapper;
-    private final HttpServletRequest request;
 
     @Around("@annotation(logRecord)")
     public Object around(ProceedingJoinPoint jp, LogRecord logRecord) throws Throwable {
@@ -52,10 +53,30 @@ public class LogAspect {
                 OperationLog ol = OperationLog.builder()
                         .module(logRecord.module()).action(logRecord.action()).target(logRecord.target())
                         .operatorId(userId).operatorName(username).detail(detail)
-                        .ip(request.getRemoteAddr()).success(success)
+                        .ip(getClientIp()).success(success)
                         .createdAt(LocalDateTime.now()).build();
                 logMapper.insert(ol);
             } catch (Exception ignored) { /* 日志记录失败不影响业务 */ }
+        }
+    }
+
+    /**
+     * 从 RequestContextHolder 获取客户端真实 IP，非 Web 上下文时返回 "unknown"
+     */
+    private String getClientIp() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            HttpServletRequest request = attrs.getRequest();
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getHeader("X-Real-IP");
+            }
+            if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            return ip;
+        } catch (IllegalStateException e) {
+            return "unknown";
         }
     }
 }

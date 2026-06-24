@@ -4,6 +4,20 @@ server:
 spring:
   application:
     name: codeforge-knowledge
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        username: nacos
+        password: 123456
+      config:
+        server-addr: localhost:8848
+        username: nacos
+        password: 123456
+        file-extension: yaml
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
   datasource:
     url: jdbc:mysql://localhost:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: root

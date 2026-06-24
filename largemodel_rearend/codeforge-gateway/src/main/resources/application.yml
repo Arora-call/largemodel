@@ -5,6 +5,11 @@ spring:
   application:
     name: codeforge-gateway
   cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        username: nacos
+        password: 123456
     gateway:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin

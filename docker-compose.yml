@@ -41,6 +41,27 @@ services:
       timeout: 5s
       retries: 5
 
+  nacos:
+    image: nacos/nacos-server:v3.1.2
+    container_name: codeforge-nacos
+    restart: unless-stopped
+    environment:
+      - MODE=standalone
+      - NACOS_AUTH_ENABLE=true
+      - NACOS_AUTH_IDENTITY_KEY=nacos
+      - NACOS_AUTH_IDENTITY_VALUE=nacos
+      - NACOS_AUTH_TOKEN=SecretKey012345678901234567890123456789012345678901234567890123456789
+    ports:
+      - "${NACOS_PORT:-8848}:8848"
+      - "${NACOS_GRPC_PORT:-9848}:9848"
+    volumes:
+      - nacos_data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+
   # ========== 微服务 ==========
   gateway:
     build:
@@ -54,8 +75,11 @@ services:
     environment:
       - PORT=8080
       - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
       - JAVA_TOOL_OPTIONS=-Xmx256m
     depends_on:
+      nacos:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       redis:
@@ -77,11 +101,15 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
       - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
       - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-placeholder}
       - JAVA_TOOL_OPTIONS=-Xmx512m
     volumes:
       - uploads_data:/app/uploads
     depends_on:
+      nacos:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       redis:
@@ -102,9 +130,13 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
       - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-placeholder}
       - JAVA_TOOL_OPTIONS=-Xmx256m
     depends_on:
+      nacos:
+        condition: service_healthy
       mysql:
         condition: service_healthy
 
@@ -123,9 +155,13 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
       - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-placeholder}
       - JAVA_TOOL_OPTIONS=-Xmx512m
     depends_on:
+      nacos:
+        condition: service_healthy
       mysql:
         condition: service_healthy
 
@@ -144,8 +180,12 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
       - JAVA_TOOL_OPTIONS=-Xmx256m
     depends_on:
+      nacos:
+        condition: service_healthy
       mysql:
         condition: service_healthy
 
@@ -164,8 +204,12 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
       - JAVA_TOOL_OPTIONS=-Xmx256m
     depends_on:
+      nacos:
+        condition: service_healthy
       mysql:
         condition: service_healthy
 
@@ -183,3 +227,4 @@ services:
 volumes:
   mysql_data:
   uploads_data:
+  nacos_data:

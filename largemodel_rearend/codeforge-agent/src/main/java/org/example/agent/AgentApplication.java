@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication(scanBasePackages = { "org.example.agent", "org.example.mapper", "org.example.config", "org.example.service.ai" })
 public class AgentApplication {
     public static void main(String[] args) {
+        System.setProperty("nacos.logging.default.config.enabled", "false");
         SpringApplication.run(AgentApplication.class, args);
     }
 }
