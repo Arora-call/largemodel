@@ -8,8 +8,11 @@
  */
 package org.example.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class GenerateCodeRequest {
@@ -30,4 +33,14 @@ public class GenerateCodeRequest {
 
     /** AI 模型配置 ID（null 则使用默认模型） */
     private Long modelId;
+
+    /** 知识库文档 ID 列表 — 作为 RAG 上下文注入 Prompt */
+    private List<Long> knowledgeDocIds;
+
+    /** 是否启用知识库自动检索（根据 Prompt 关键词自动匹配文档） */
+    private boolean autoSearchKnowledge = false;
+
+    /** 知识库上下文（由服务端构建，非客户端传入，序列化忽略） */
+    @JsonIgnore
+    private String knowledgeContext;
 }

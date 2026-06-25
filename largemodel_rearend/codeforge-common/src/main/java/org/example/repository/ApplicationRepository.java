@@ -37,4 +37,10 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     long countByUserIdAndStatusNot(Long userId, Integer status);
 
     java.util.Optional<Application> findByDeployKey(String deployKey);
+
+    // ── 管理员：查询所有用户的应用 ──
+    Page<Application> findByStatusNot(Integer status, Pageable pageable);
+    Page<Application> findByStatusNotAndType(Integer status, String type, Pageable pageable);
+    Page<Application> findByStatusNotAndNameContaining(Integer status, String keyword, Pageable pageable);
+    Page<Application> findByStatusNotAndNameContainingAndType(Integer status, String keyword, String type, Pageable pageable);
 }

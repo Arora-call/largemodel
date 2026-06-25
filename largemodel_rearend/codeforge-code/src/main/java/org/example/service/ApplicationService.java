@@ -138,6 +138,16 @@ public class ApplicationService {
         appRepo.save(app);
     }
 
+    /** 设置优先级: 0-默认, 99-精选, 999-置顶 */
+    @Transactional
+    public void updatePriority(Long id, Long userId, Integer priority) {
+        Application app = findOwnApp(id, userId);
+        app.setPriority(priority != null ? priority : 0);
+        app.setUpdatedAt(LocalDateTime.now());
+        appRepo.save(app);
+    }
+
+
     /** 关联对话到应用 */
     @Transactional
     public void linkConversation(Long appId, Long conversationId) {

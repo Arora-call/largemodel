@@ -15,7 +15,7 @@
     </div>
 
     <el-card class="table-card">
-      <el-table :data="logs" style="width:100%" v-loading="loading" stripe empty-text="暂无操作记录">
+      <el-table :data="logs" style="width:100%" v-loading="loading" empty-text="暂无操作记录">
         <el-table-column prop="timestamp" label="时间" width="170" />
         <el-table-column prop="level" label="模块" width="80">
           <template #default="{ row }">

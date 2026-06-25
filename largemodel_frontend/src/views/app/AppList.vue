@@ -25,7 +25,7 @@
     </div>
 
     <!-- Empty state -->
-    <div v-if="apps.length === 0 && !loading" class="empty-state">
+    <div v-if="sortedApps.length === 0 && !loading" class="empty-state">
       <div class="empty-icon">📁</div>
       <h3>还没有生成任何应用</h3>
       <p>去 AI 代码生成页面开始创建你的第一个应用</p>
@@ -36,11 +36,13 @@
 
     <!-- App grid -->
     <div v-else class="app-grid">
-      <div v-for="app in apps" :key="app.id" class="app-card" @click="openApp(app)">
+      <div v-for="app in sortedApps" :key="app.id" class="app-card" @click="openApp(app)">
         <div class="card-top">
           <div class="card-type-badge" :class="app.type === 'ENGINEERING' ? 'type-project' : 'type-native'">
             {{ typeLabel(app.type) }}
           </div>
+          <span v-if="app.priority >= 999" class="badge-pinned">📌 置顶</span>
+          <span v-else-if="app.priority >= 99" class="badge-featured">⭐ 精选</span>
           <span class="card-lang">{{ app.language || 'code' }}</span>
         </div>
         <div class="card-body">
@@ -50,6 +52,12 @@
         <div class="card-footer">
           <span class="card-date">{{ app.updatedAt?.substring(0, 10) || '-' }}</span>
           <div class="card-actions">
+            <button class="card-btn pin-btn"
+              :class="{ active: app.priority >= 99 }"
+              @click.stop="handlePriority(app)"
+              :title="app.priority >= 999 ? '取消置顶' : app.priority >= 99 ? '取消精选' : '置顶/精选'">
+              {{ app.priority >= 999 ? '📌' : app.priority >= 99 ? '⭐' : '📌' }}
+            </button>
             <button class="card-btn deploy-btn"
               :class="{ deploying: deployingAppId === app.id }"
               @click.stop="handleDeployApp(app)"
@@ -156,16 +164,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Download, Delete } from '@element-plus/icons-vue'
-import { listApplications, deleteApplication, downloadApplication, updateApplication } from '@/api/app'
+import { listApplications, deleteApplication, downloadApplication, updateApplication, setAppPriority } from '@/api/app'
 import { deployByAppId } from '@/api/ai'
 
 const router = useRouter()
 
 const apps = ref([])
+const sortedApps = computed(() =>
+  [...apps.value].sort((a, b) => (b.priority || 0) - (a.priority || 0))
+)
 const loading = ref(false)
 const total = ref(0)
 const size = ref(12)
@@ -235,6 +246,17 @@ async function handleDeployApp(app) {
     deployingAppId.value = null
     deploying.value = false
   }
+}
+
+/** 置顶/精选 轮转: 默认→精选(99)→置顶(999)→默认(0) */
+async function handlePriority(app) {
+  const next = (app.priority || 0) >= 999 ? 0 : (app.priority || 0) >= 99 ? 999 : 99
+  try {
+    await setAppPriority(app.id, next)
+    app.priority = next
+    const labels = { 999: '已置顶', 99: '已设为精选', 0: '已取消' }
+    ElMessage.success(labels[next] || '已更新')
+  } catch { ElMessage.error('操作失败') }
 }
 
 function copyDeployUrl(appId) {
@@ -390,6 +412,24 @@ onMounted(fetchList)
   font-weight: 500;
 }
 
+.badge-pinned {
+  font-size: 10px;
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.badge-featured {
+  font-size: 10px;
+  color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
 .card-body {
   padding: 12px 16px;
   flex: 1;
@@ -457,6 +497,11 @@ onMounted(fetchList)
   border-color: var(--accent);
 }
 
+.pin-btn.active {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: var(--warning, #f59e0b);
+}
+.pin-btn:hover { background: rgba(251, 191, 36, 0.1); border-color: var(--warning, #f59e0b); }
 .deploy-btn:hover {
   background: rgba(251, 146, 60, 0.15);
   border-color: #fb923c;

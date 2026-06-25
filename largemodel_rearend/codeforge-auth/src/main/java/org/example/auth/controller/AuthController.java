@@ -10,6 +10,7 @@ package org.example.auth.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.example.annotation.LogRecord;
 import org.example.dto.request.ForgetPasswordRequest;
 import org.example.dto.request.LoginRequest;
 import org.example.dto.request.RegisterRequest;
@@ -32,6 +33,7 @@ public class AuthController {
     /**
      * 用户注册
      */
+    @LogRecord(module = "auth", action = "REGISTER", target = "User")
     @PostMapping("/register")
     public ApiResponse<UserInfoResponse> register(@Valid @RequestBody RegisterRequest request) {
         UserInfoResponse user = authService.register(request);
@@ -41,6 +43,7 @@ public class AuthController {
     /**
      * 用户登录
      */
+    @LogRecord(module = "auth", action = "LOGIN", target = "User")
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.login(request);
@@ -60,6 +63,7 @@ public class AuthController {
     /**
      * 找回密码：通过用户名+邮箱验证身份后重置密码
      */
+    @LogRecord(module = "auth", action = "RESET_PASSWORD", target = "User")
     @PostMapping("/forgot-password")
     public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgetPasswordRequest request) {
         authService.forgetPassword(request);

@@ -17,24 +17,26 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin/models")
 @RequiredArgsConstructor
-@AuthCheck("ADMIN")
 public class ModelConfigController {
 
     private final ModelConfigService service;
 
     /** 列出全部模型（管理用） */
+    @AuthCheck("ADMIN")
     @GetMapping
     public ApiResponse<List<ModelConfig>> list() {
         return ApiResponse.success(service.listAll());
     }
 
     /** 单个详情 */
+    @AuthCheck("ADMIN")
     @GetMapping("/{id}")
     public ApiResponse<Map<String, Object>> get(@PathVariable Long id) {
         return ApiResponse.success(service.getById(id));
     }
 
     /** 添加模型 */
+    @AuthCheck("ADMIN")
     @LogRecord(module = "admin", action = "CREATE", target = "ModelConfig")
     @PostMapping
     public ApiResponse<ModelConfig> create(@RequestBody Map<String, Object> body) {
@@ -52,6 +54,7 @@ public class ModelConfigController {
     }
 
     /** 更新模型 */
+    @AuthCheck("ADMIN")
     @LogRecord(module = "admin", action = "UPDATE", target = "ModelConfig")
     @PutMapping("/{id}")
     public ApiResponse<Void> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
@@ -71,6 +74,7 @@ public class ModelConfigController {
     }
 
     /** 删除模型 */
+    @AuthCheck("ADMIN")
     @LogRecord(module = "admin", action = "DELETE", target = "ModelConfig")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
@@ -79,6 +83,7 @@ public class ModelConfigController {
     }
 
     /** 测试连接 */
+    @AuthCheck("ADMIN")
     @PostMapping("/{id}/test")
     public ApiResponse<Map<String, Object>> test(@PathVariable Long id) {
         return ApiResponse.success(service.testConnection(id));

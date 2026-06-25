@@ -26,5 +26,5 @@ public interface MessageMapper extends BaseMapper<Message> {
                                           @Param("cursor") Long cursor);
 
     @Delete("DELETE FROM messages WHERE conversation_id = #{conversationId}")
-    void deleteByConversationId(@Param("conversationId") Long conversationId);
+    int deleteByConversationId(@Param("conversationId") Long conversationId);
 }

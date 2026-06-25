@@ -81,6 +81,7 @@ public class ApplicationController {
                     ? a.getDescription().substring(0, Math.min(100, a.getDescription().length())) : "");
             m.put("type", a.getType()); m.put("language", a.getLanguage() != null ? a.getLanguage() : "");
             m.put("status", a.getStatus());
+            m.put("priority", a.getPriority() != null ? a.getPriority() : 0);
             m.put("coverImage", a.getCoverImage() != null ? a.getCoverImage() : "");
             m.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
             m.put("updatedAt", a.getUpdatedAt() != null ? a.getUpdatedAt().toString() : "");
@@ -113,6 +114,16 @@ public class ApplicationController {
         Long convId = appService.findConversationIdByAppId(id);
         detail.put("conversationId", convId);
         return ApiResponse.success(detail);
+    }
+
+    /** 设置应用优先级（置顶/精选） */
+    @PutMapping("/{id}/priority")
+    public ApiResponse<Void> setPriority(@PathVariable Long id,
+                                         @RequestBody Map<String, Object> body,
+                                         @AuthenticationPrincipal User user) {
+        Integer priority = body.get("priority") != null ? ((Number) body.get("priority")).intValue() : 0;
+        appService.updatePriority(id, user.getId(), priority);
+        return ApiResponse.msg("已更新");
     }
 
     /** 删除应用 */

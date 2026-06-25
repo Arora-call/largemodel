@@ -69,6 +69,10 @@
             <el-icon><Tickets /></el-icon>
             <template #title>系统日志</template>
           </el-menu-item>
+          <el-menu-item index="/admin/applications">
+            <el-icon><FolderOpened /></el-icon>
+            <template #title>应用管理</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
 
@@ -200,7 +204,8 @@ const pageTitle = computed(() => {
     '/user/profile': '个人中心',
     '/admin/users': '用户管理',
     '/admin/models': '模型配置',
-    '/admin/logs': '系统日志'
+    '/admin/logs': '系统日志',
+    '/admin/applications': '应用管理'
   }
   return titles[route.path] || route.meta.title || ''
 })

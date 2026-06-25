@@ -39,6 +39,7 @@ public class CodeGenerationExecutor {
     private final org.example.service.MonitorService monitorService;
     private final org.example.mapper.ModelConfigMapper modelConfigMapper;
     private final org.example.service.DeployService deployService;
+    private final KnowledgeContextService knowledgeContextService;
 
     private final Map<GenerateMode, CodeGenerationStrategy> registry = new EnumMap<>(GenerateMode.class);
 
@@ -69,8 +70,24 @@ public class CodeGenerationExecutor {
             throw new IllegalArgumentException("不支持的生成模式: " + mode
                     + "，可用模式: " + registry.keySet());
         }
-        log.info("执行代码生成: mode={}, prompt={}, userId={}",
-                mode, truncate(request.getPrompt(), 50), userId);
+
+        // ── RAG: 构建知识库上下文 ──
+        String kbContext = "";
+        if (request.getKnowledgeDocIds() != null && !request.getKnowledgeDocIds().isEmpty()) {
+            // 用户手动选择了文档
+            kbContext = knowledgeContextService.buildContext(request.getKnowledgeDocIds());
+        } else if (request.isAutoSearchKnowledge()) {
+            // 根据 Prompt 自动检索
+            kbContext = knowledgeContextService.buildContextByPrompt(userId, request.getPrompt(), 5);
+        }
+        if (!kbContext.isEmpty()) {
+            request.setKnowledgeContext(kbContext);
+        }
+
+        log.info("执行代码生成: mode={}, prompt={}, userId={}, kbDocs={}, kbChars={}",
+                mode, truncate(request.getPrompt(), 50), userId,
+                request.getKnowledgeDocIds() != null ? request.getKnowledgeDocIds().size() : 0,
+                kbContext.length());
         return strategy.generate(request, userId);
     }
 

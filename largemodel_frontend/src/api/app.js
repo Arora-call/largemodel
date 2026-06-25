@@ -90,3 +90,21 @@ export async function exportConversation(convId) {
   if (!resp.ok) throw new Error('导出失败')
   return resp.text()
 }
+
+/** 设置应用优先级: 0-默认, 99-精选, 999-置顶 */
+export function setAppPriority(id, priority) {
+  return request.put(`/applications/${id}/priority`, { priority })
+}
+
+/* ── 管理员：应用管理 ── */
+export function listAllApplications(params) {
+  return request.get('/admin/applications', { params })
+}
+
+export function adminUpdateApplication(id, data) {
+  return request.put(`/admin/applications/${id}`, data)
+}
+
+export function adminDeleteApplication(id) {
+  return request.delete(`/admin/applications/${id}`)
+}

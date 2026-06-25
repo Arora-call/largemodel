@@ -57,7 +57,7 @@ public class AiCodeGenService {
             m.put("segments", extractSegments(raw));
             m.put("language", request.getLanguage() != null ? request.getLanguage() : LanguageUtil.detectByContent(raw));
             return m;
-        });
+        }, userId);
     }
 
     public SseEmitter modifyCodeStream(CodeModifyRequest request, Long userId) {
@@ -84,7 +84,7 @@ public class AiCodeGenService {
                 }
             }
             return Map.of("conversationId", cid != null ? cid : 0);
-        });
+        }, userId);
     }
 
     /** 工程项目流式生成（解析后在磁盘创建真实文件） */
@@ -107,7 +107,7 @@ public class AiCodeGenService {
                 projectService.createProjectFiles(cid, folderName, files);
             }
             return parsed;
-        });
+        }, userId);
     }
 
     /** 解析 [PROJECT] + [FILE] 极简标记格式，多层兜底 */
@@ -316,7 +316,8 @@ public class AiCodeGenService {
     }
 
     private SseEmitter doStream(List<ChatMessage> messages, Long modelId,
-                                 java.util.function.Function<String, Map<String, Object>> extra) {
+                                 java.util.function.Function<String, Map<String, Object>> extra,
+                                 Long userId) {
         SseEmitter emitter = new SseEmitter(300_000L);
         java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
         Thread.ofVirtual().start(() -> {
@@ -350,12 +351,12 @@ public class AiCodeGenService {
                             emitter.send(SseEmitter.event().name("done").data(MAPPER.writeValueAsString(done)));
                             emitter.complete();
                             log.info("SSE 流式完成, 长度={}", raw.length());
-                            logCall(full.toString(), modelId, firstTokenAt.get() > 0 ? firstTokenAt.get() - start : System.currentTimeMillis() - start, true, null);
+                            logCall(full.toString(), modelId, firstTokenAt.get() > 0 ? firstTokenAt.get() - start : System.currentTimeMillis() - start, true, null, userId);
                         } catch (IOException e) {
                             log.debug("SSE done 发送失败, 客户端已断开");
                         } catch (Exception e) {
                             log.error("SSE done 处理异常: {}", e.getMessage());
-                            logCall(full.toString(), modelId, firstTokenAt.get() > 0 ? firstTokenAt.get() - start : 0, false, e.getMessage());
+                            logCall(full.toString(), modelId, firstTokenAt.get() > 0 ? firstTokenAt.get() - start : 0, false, e.getMessage(), userId);
                         }
                     }
                     @Override public void onError(Throwable e) {
@@ -363,7 +364,7 @@ public class AiCodeGenService {
                         completed.set(true);
                         log.error("SSE 流式异常: {}", e.getMessage());
                         safeSendError(emitter, "生成失败: " + e.getMessage());
-                        logCall(full.toString(), modelId, 0, false, e.getMessage());
+                        logCall(full.toString(), modelId, 0, false, e.getMessage(), userId);
                         try { emitter.completeWithError(e); } catch (Exception ignored) {}
                     }
                 });
@@ -372,7 +373,7 @@ public class AiCodeGenService {
                 completed.set(true);
                 log.error("SSE 启动失败: {}", e.getMessage());
                 safeSendError(emitter, "服务内部错误: " + e.getMessage());
-                logCall("", modelId, 0, false, e.getMessage());
+                logCall("", modelId, 0, false, e.getMessage(), userId);
                 try { emitter.completeWithError(e); } catch (Exception ignored) {}
             }
         });
@@ -435,7 +436,7 @@ public class AiCodeGenService {
     }
 
     /** 记录 API 调用到监控日志 */
-    private void logCall(String raw, Long modelId, long ttfbMs, boolean success, String error) {
+    private void logCall(String raw, Long modelId, long ttfbMs, boolean success, String error, Long userId) {
         try {
             String model = "default";
             if (modelId != null) {
@@ -446,7 +447,7 @@ public class AiCodeGenService {
                 if (def != null) model = def.getModelName();
             }
             int tokens = raw.isEmpty() ? 0 : raw.length() / 4;
-            monitorService.record("/api/ai/generate/stream", null, model, tokens,
+            monitorService.record("/api/ai/generate/stream", userId, model, tokens,
                     ttfbMs > 0 ? ttfbMs : 0, success, error);
         } catch (Exception ignored) { /* monitoring shouldn't break main flow */ }
     }

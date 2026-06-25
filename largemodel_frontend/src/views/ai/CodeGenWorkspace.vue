@@ -15,7 +15,43 @@
       </div>
       <!-- 模型选择 -->
       <div class="header-right">
-        <el-select v-model="selectedModelId" size="small" placeholder="选择模型"
+        <!-- 知识库 -->
+        <el-popover
+          v-model:visible="kbPopoverVisible"
+          placement="bottom"
+          :width="320"
+          trigger="click"
+        >
+          <template #reference>
+            <el-button size="small"
+              :type="selectedKbDocs.length > 0 || autoSearchKb ? 'warning' : 'default'"
+              @click="loadKnowledgeDocs">
+              📚 知识库
+              <span v-if="selectedKbDocs.length" class="kb-badge">{{ selectedKbDocs.length }}</span>
+            </el-button>
+          </template>
+          <div class="kb-popover">
+            <div class="kb-pop-header">
+              <el-switch v-model="autoSearchKb" size="small" active-text="自动检索" />
+              <span class="kb-hint" v-if="autoSearchKb">根据问题自动匹配文档</span>
+            </div>
+            <el-divider style="margin:8px 0" />
+            <div class="kb-pop-list" v-loading="kbLoading">
+              <div v-if="!knowledgeDocs.length" class="kb-empty">暂无知识库文档</div>
+              <el-checkbox-group v-model="selectedKbDocs" :disabled="autoSearchKb">
+                <div v-for="doc in knowledgeDocs" :key="doc.id"
+                  class="kb-doc-item">
+                  <el-checkbox :value="doc.id" :label="doc.id">
+                    <span class="kb-doc-title">{{ doc.title || doc.fileName }}</span>
+                  </el-checkbox>
+                  <span class="kb-doc-type">{{ doc.docType }}</span>
+                </div>
+              </el-checkbox-group>
+            </div>
+          </div>
+        </el-popover>
+
+        <el-select v-model="selectedModelId" size="small" placeholder="默认模型default"
           style="width: 180px" @change="persistModel">
           <el-option :value="null" label="默认模型" />
           <el-option v-for="m in availableModels" :key="m.id"
@@ -144,6 +180,13 @@
             {{ previewFileName }}
           </span>
           <div class="preview-actions">
+            <el-button
+              size="small"
+              :type="pickerActive ? 'success' : 'default'"
+              @click="togglePicker"
+              title="选取页面元素以精准定位修改">
+              🎯 {{ pickerActive ? '选取中...' : '选取元素' }}
+            </el-button>
             <el-button v-if="!deployedUrl && currentMode !== 'SINGLE_FILE'"
               size="small" type="warning" :loading="isDeploying"
               @click="handleDeploy" title="部署到 Nginx 预览">
@@ -156,10 +199,20 @@
             <el-button size="small" text @click="showPreview = false"><i class="fa fa-times"></i></el-button>
           </div>
         </div>
+        <!-- 已选取的元素气泡 -->
+        <div v-if="pickedElements.length" class="picked-elements-bar">
+          <span class="picked-label">已选元素:</span>
+          <span v-for="el in pickedElements" :key="el.selector" class="picked-tag">
+            <code>{{ el.selector }}</code>
+            <button class="picked-tag-close" @click="removePickedElement(el.selector)" title="取消选中">×</button>
+          </span>
+        </div>
+
         <div class="preview-body" :class="{ 'no-pointer': isResizing }">
           <!-- Nginx 部署预览 -->
           <iframe v-if="deployedUrl"
             ref="htmlPreview" class="preview-iframe"
+            :key="'deploy-' + previewVersion"
             :src="deployedUrl" @load="onPreviewLoad"></iframe>
           <!-- 部署失败提示 -->
           <div v-else-if="previewContent === 'deploy_failed'"
@@ -171,6 +224,7 @@
           <!-- 内联预览：srcdoc -->
           <iframe v-else-if="previewHtml && currentMode !== 'VUE_PROJECT'"
             ref="htmlPreview" class="preview-iframe"
+            :key="'preview-' + previewVersion"
             :srcdoc="previewHtml" @load="onPreviewLoad"></iframe>
           <!-- Vue3 项目：Sandpack（即时预览 / Nginx 部署前的 fallback） -->
           <SandboxPreview v-else-if="currentMode === 'VUE_PROJECT'"
@@ -191,9 +245,10 @@
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { unifiedGenerateStream, deployConversation } from '@/api/ai'
+import { unifiedGenerateStream, modifyCodeStream, deployConversation } from '@/api/ai'
 import { listConversations, getMessages, deleteConversation as delConv, exportConversation, saveApplication, getApplication } from '@/api/app'
 import { listEnabledModels } from '@/api/admin'
+import { listDocuments } from '@/api/knowledge'
 import markdownit from 'markdown-it'
 import SandboxPreview from '@/components/SandboxPreview.vue'
 
@@ -240,6 +295,28 @@ const streamText = ref('')
 const generating = ref(false)
 let abortController = null
 
+// ─── 知识库 ───
+const knowledgeDocs = ref([])
+const selectedKbDocs = ref([])
+const autoSearchKb = ref(false)
+const kbPopoverVisible = ref(false)
+const kbLoading = ref(false)
+
+async function loadKnowledgeDocs() {
+  kbLoading.value = true
+  try {
+    const res = await listDocuments({ page: 0, size: 50 })
+    knowledgeDocs.value = res.data?.content || []
+  } catch { knowledgeDocs.value = [] }
+  finally { kbLoading.value = false }
+}
+
+function toggleKbDoc(docId) {
+  const idx = selectedKbDocs.value.indexOf(docId)
+  if (idx >= 0) selectedKbDocs.value.splice(idx, 1)
+  else selectedKbDocs.value.push(docId)
+}
+
 // ─── 预览 ───
 
 const showPreview = ref(false)
@@ -257,10 +334,150 @@ const expandedFiles = reactive({})
 const deployedUrl = ref('')     // Nginx 部署后的访问 URL
 const isDeploying = ref(false)   // 部署中状态
 
+// ─── 元素选取 ───
+const pickerActive = ref(false)
+const pickedElements = ref([])   // [{tag, id, classes, text, selector}]
+const previewVersion = ref(0)    // 强制 iframe 刷新
+
+/** 切换元素选取模式 */
+function togglePicker() {
+  pickerActive.value = !pickerActive.value
+  if (pickerActive.value) {
+    pickedElements.value = []
+    injectPickerScript()
+  } else {
+    removePickerFromIframe()
+  }
+}
+
+/** 向预览 iframe 注入元素选取脚本 */
+function injectPickerScript() {
+  const iframe = htmlPreview.value
+  if (!iframe) return
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) return
+    // 移除旧脚本（如果存在）
+    const old = doc.getElementById('cf-picker-script')
+    if (old) old.remove()
+    const oldOverlay = doc.getElementById('cf-picker-overlay')
+    if (oldOverlay) oldOverlay.remove()
+    const oldStyle = doc.getElementById('cf-picker-style')
+    if (oldStyle) oldStyle.remove()
+
+    // 注入样式
+    const style = doc.createElement('style')
+    style.id = 'cf-picker-style'
+    style.textContent = `
+      .cf-hover-highlight { outline: 2px solid #7c8aff !important; outline-offset: 2px; }
+      #cf-picker-overlay { position: fixed; top:0;left:0;width:100%;height:100%;z-index:999999;pointer-events:none; }
+    `
+    doc.head.appendChild(style)
+
+    // 注入脚本
+    const script = doc.createElement('script')
+    script.id = 'cf-picker-script'
+    script.textContent = `
+      (function() {
+        var hovered = null
+        document.addEventListener('mouseover', function(e) {
+          if (hovered) hovered.classList.remove('cf-hover-highlight')
+          var el = e.target
+          if (!el || el === document.body || el === document.documentElement) return
+          el.classList.add('cf-hover-highlight')
+          hovered = el
+          e.stopPropagation()
+        }, true)
+        document.addEventListener('mouseout', function(e) {
+          if (hovered) { hovered.classList.remove('cf-hover-highlight'); hovered = null }
+        }, true)
+        document.addEventListener('click', function(e) {
+          e.preventDefault()
+          e.stopPropagation()
+          var el = e.target
+          if (!el || el === document.body || el === document.documentElement) return
+          // 先移除高亮 class 再读取 className
+          el.classList.remove('cf-hover-highlight')
+          hovered = null
+          var tag = el.tagName.toLowerCase()
+          var id = el.id || ''
+          // 过滤掉我们注入的 class
+          var rawClasses = (el.className && typeof el.className === 'string') ? String(el.className).trim() : ''
+          var classes = rawClasses.replace(/\\bcf-hover-highlight\\b/g, '').trim()
+          // 取第一个直接文本节点的内容，压缩空白
+          var text = ''
+          for (var i = 0; i < el.childNodes.length; i++) {
+            if (el.childNodes[i].nodeType === 3) { text += el.childNodes[i].textContent; break }
+          }
+          text = text.replace(/\\s+/g, ' ').trim().substring(0, 60)
+          if (!text) {
+            // 回退：用 innerText（只取可见文字）截取
+            text = (el.innerText || '').replace(/\\s+/g, ' ').trim().substring(0, 60)
+          }
+          // 构建 CSS 选择器（去掉 cf-hover-highlight）
+          var selector = tag
+          if (id) selector = '#' + id
+          else if (classes) selector = tag + '.' + classes.split(/\\s+/).join('.')
+          window.parent.postMessage({
+            type: 'cf-pick-element',
+            data: { tag: tag, id: id, classes: classes, text: text, selector: selector }
+          }, '*')
+        }, true)
+      })()
+    `
+    doc.body.appendChild(script)
+  } catch (e) {
+    // 跨域 iframe 无法注入（deployedUrl 跨域场景）
+    console.warn('元素选取脚本注入失败（可能跨域）:', e.message)
+  }
+}
+
+/** 移除 iframe 中的选取脚本 */
+function removePickerFromIframe() {
+  const iframe = htmlPreview.value
+  if (!iframe) return
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) return
+    ;['cf-picker-script', 'cf-picker-overlay', 'cf-picker-style'].forEach(id => {
+      const el = doc.getElementById(id)
+      if (el) el.remove()
+    })
+    // 清除所有高亮
+    doc.querySelectorAll('.cf-hover-highlight').forEach(el => el.classList.remove('cf-hover-highlight'))
+  } catch (e) { /* ignore */ }
+}
+
+/** 从预览 iframe 收到消息时处理 */
+function handlePreviewMessage(e) {
+  if (e.data?.type === 'cf-pick-element' && e.data.data) {
+    const d = e.data.data
+    // 去重：相同 selector 不重复添加
+    if (!pickedElements.value.find(p => p.selector === d.selector)) {
+      pickedElements.value.push(d)
+    }
+  }
+}
+
+/** 移除单个已选元素 */
+function removePickedElement(selector) {
+  pickedElements.value = pickedElements.value.filter(p => p.selector !== selector)
+}
+
+/** 构建元素信息文本（用于 AI prompt） */
+function buildPickedElementsInfo() {
+  if (!pickedElements.value.length) return ''
+  return pickedElements.value.map((el, i) =>
+    `[元素${i + 1}] <${el.tag}${el.id ? ' id="' + el.id + '"' : ''}${el.classes ? ' class="' + el.classes + '"' : ''}> 文本: "${el.text}" (选择器: ${el.selector})`
+  ).join('\n')
+}
+
 // ─── 初始化 ───
 
 onMounted(async () => {
+  window.addEventListener('message', handlePreviewMessage)
   await loadModels()
+  loadKnowledgeDocs()
   const savedMode = localStorage.getItem('codegen-mode')
   if (savedMode && modes.find(m => m.key === savedMode)) {
     currentMode.value = savedMode
@@ -358,6 +575,8 @@ function newConversation() {
   showPreview.value = false
   deployedUrl.value = ''
   inputText.value = ''
+  pickerActive.value = false
+  pickedElements.value = []
 }
 
 async function switchConversation(c) {
@@ -407,7 +626,10 @@ async function switchConversation(c) {
         break
       }
     }
-  } catch (e) { ElMessage.error('加载对话失败') }
+  } catch (e) {
+    console.error('加载对话失败，详细错误:', e)
+    ElMessage.error('加载对话失败: ' + (e.message || '未知错误'))
+  }
 }
 
 async function deleteConversation(c) {
@@ -426,19 +648,58 @@ async function handleGenerate() {
   const prompt = inputText.value.trim()
   inputText.value = ''
 
-  messages.value.push({ role: 'user', content: prompt })
+  // 如果有选取的元素，走「文件修改」流程
+  const elementsInfo = buildPickedElementsInfo()
+  const isModify = !!elementsInfo
+
+  // 对话中显示简洁消息（不重复元素详情，AI 会单独收到）
+  const displayMsg = isModify
+    ? `🎯 ${prompt}\n(已选中 ${pickedElements.value.length} 个元素，精准修改)`
+    : prompt
+  messages.value.push({ role: 'user', content: displayMsg })
   streamText.value = ''
   generating.value = true
   previewError.value = null
 
   abortController = new AbortController()
 
+  // 选取了元素 → 调用文件修改 API
+  if (isModify) {
+    const currentFiles = collectCurrentFiles()
+    try {
+      await modifyCodeStream({
+        files: currentFiles,
+        elementInfo: elementsInfo,
+        modifyPrompt: prompt,
+        conversationId: currentConv.value?.id || null,
+        type: currentMode.value
+      }, {
+        onToken: (t) => { streamText.value += t.replace(/\\n/g, '\n').replace(/\\t/g, '\t') },
+        onDone: (raw) => { handleModifyDone(raw) },
+        onError: (err) => {
+          ElMessage.error('修改失败: ' + err.message)
+          generating.value = false
+        },
+        signal: abortController.signal
+      })
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        ElMessage.error('请求异常: ' + e.message)
+      }
+      generating.value = false
+    }
+    return
+  }
+
+  // 正常生成
   try {
     await unifiedGenerateStream({
       prompt,
       type: currentMode.value,
       conversationId: currentConv.value?.id || null,
-      modelId: selectedModelId.value || null
+      modelId: selectedModelId.value || null,
+      knowledgeDocIds: selectedKbDocs.value.length > 0 ? [...selectedKbDocs.value] : null,
+      autoSearchKnowledge: autoSearchKb.value
     }, {
       onToken: (t) => { streamText.value += t.replace(/\\n/g, '\n').replace(/\\t/g, '\t') },
       onToolCall: (data) => {
@@ -462,6 +723,96 @@ async function handleGenerate() {
     }
     generating.value = false
   }
+}
+
+/** 收集当前预览中的文件列表 */
+function collectCurrentFiles() {
+  // 1. 从最近一条 AI 消息中提取文件
+  const lastAi = [...messages.value].reverse().find(m => m.role === 'ai')
+  if (lastAi?.files?.length) {
+    return lastAi.files.map(f => ({ path: f.path, language: f.language || detectLangFromPath(f.path), content: f.content }))
+  }
+  // 2. 从 previewFilesMap 重建（Vue 项目 / Sandpack）
+  if (Object.keys(previewFilesMap.value).length) {
+    return Object.entries(previewFilesMap.value).map(([path, obj]) => ({
+      path, language: detectLangFromPath(path), content: obj.code || ''
+    }))
+  }
+  // 3. 回退：从 previewContent/previewHtml 重建（单文件模式）
+  const content = previewContent.value
+  const name = previewFileName.value || 'index.html'
+  if (content && content.length > 10) {
+    return [{ path: name, language: detectLangFromPath(name), content: content }]
+  }
+  // 4. 最终回退：最后一个 AI 消息的 code 字段
+  if (lastAi?.code && lastAi.code.length > 10) {
+    return [{ path: 'index.html', language: 'html', content: lastAi.code }]
+  }
+  return []
+}
+
+/** 处理修改完成事件 */
+function handleModifyDone(raw) {
+  generating.value = false
+  try {
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw
+    const files = data.files || []
+
+    const aiMsg = {
+      role: 'ai',
+      text: data.text || '修改完成',
+      files: files,
+      code: data.code || '',
+      language: data.language || 'html'
+    }
+    messages.value.push(aiMsg)
+
+    // 更新预览
+    if (files.length) {
+      if (currentMode.value === 'VUE_PROJECT') {
+        buildPreviewFilesMap(files)
+        sandpackKey.value++
+        showPreview.value = true
+        previewFileName.value = files.find(f => f.path === 'package.json')?.path || 'Vue 项目'
+        previewVersion.value++
+        // 重新部署（部署完成后 iframe 会通过 key 重建）
+        if (currentConv.value?.id) {
+          autoDeployMultiFile(currentConv.value.id).then(() => {
+            previewVersion.value++
+          })
+        }
+      } else if (currentMode.value === 'MULTI_FILE') {
+        if (currentConv.value?.id) {
+          autoDeployMultiFile(currentConv.value.id).then(() => {
+            previewVersion.value++
+          })
+        }
+      } else {
+        const mainFile = findMainFile(files)
+        setPreview(mainFile?.content || '', mainFile?.path || 'index.html')
+        previewVersion.value++
+      }
+    }
+
+    // 清理选取状态
+    removePickerFromIframe()
+    pickedElements.value = []
+    pickerActive.value = false
+    previewVersion.value++  // 强制 iframe 重建
+    ElMessage.success('修改完成')
+    nextTick(() => scrollToBottom())
+  } catch (e) {
+    console.error('解析修改完成事件失败:', e)
+  }
+}
+
+function detectLangFromPath(path) {
+  if (!path) return 'text'
+  if (path.endsWith('.vue')) return 'vue'
+  if (path.endsWith('.html')) return 'html'
+  if (path.endsWith('.css')) return 'css'
+  if (path.endsWith('.js')) return 'javascript'
+  return 'text'
 }
 
 function handleStreamDone(raw) {
@@ -723,7 +1074,12 @@ function startResize(e) {
   document.addEventListener('mouseup', onUp)
 }
 
-function onPreviewLoad() {}
+function onPreviewLoad() {
+  if (pickerActive.value) {
+    // iframe 内容变化后重新注入选取脚本
+    nextTick(() => injectPickerScript())
+  }
+}
 
 // ─── 导出 ───
 
@@ -742,33 +1098,37 @@ async function handleExport() {
 // ─── 工具函数 ───
 
 function parseAiMessage(m) {
-  const msg = { role: m.role?.toLowerCase(), content: m.content }
-  if (m.role === 'AI' || m.role === 'ai') {
-    const raw = m.content || ''
-    msg.files = extractFilesFromContent(raw)
-    // 文本：优先从 JSON 取 description，回退到去掉代码块和 JSON 的纯文本
-    if (msg.files.length) {
-      const json = extractJsonObject(raw)
-      if (json?.description) {
-        msg.text = json.description
-      } else {
-        // 取 JSON 之前（或之后）的自然语言
-        const braceIdx = raw.indexOf('{')
-        if (braceIdx > 0) {
-          msg.text = raw.substring(0, braceIdx).replace(/```[\s\S]*?```/g, '').trim()
+  try {
+    const msg = { role: m.role?.toLowerCase(), content: m.content }
+    if (m.role === 'AI' || m.role === 'ai') {
+      const raw = m.content || ''
+      msg.files = extractFilesFromContent(raw)
+      // 文本：优先从 JSON 取 description，回退到去掉代码块和 JSON 的纯文本
+      if (msg.files.length) {
+        const json = extractJsonObject(raw)
+        if (json?.description) {
+          msg.text = json.description
         } else {
-          msg.text = raw.replace(/```[\s\S]*?```/g, '').replace(/\[FILE\][^\n]*/gi, '').trim()
+          const braceIdx = raw.indexOf('{')
+          if (braceIdx > 0) {
+            msg.text = raw.substring(0, braceIdx).replace(/```[\s\S]*?```/g, '').trim()
+          } else {
+            msg.text = raw.replace(/```[\s\S]*?```/g, '').replace(/\[FILE\][^\n]*/gi, '').trim()
+          }
         }
+      } else {
+        msg.text = raw.replace(/```[\s\S]*?```/g, '').replace(/\[FILE\][^\n]*/gi, '').trim()
       }
-    } else {
-      msg.text = raw.replace(/```[\s\S]*?```/g, '').replace(/\[FILE\][^\n]*/gi, '').trim()
+      // code：从 files 重建，使用语言对应的注释标记
+      msg.code = msg.files.length
+        ? msg.files.map(f => commentForFile(f.path) + '\n' + (f.content || '')).join('\n\n')
+        : (extractCode(raw) || raw)
     }
-    // code：从 files 重建，使用语言对应的注释标记
-    msg.code = msg.files.length
-      ? msg.files.map(f => commentForFile(f.path) + '\n' + (f.content || '')).join('\n\n')
-      : (extractCode(raw) || raw)
+    return msg
+  } catch (e) {
+    console.error('parseAiMessage 解析失败:', e, m)
+    return { role: m.role?.toLowerCase(), content: m.content, text: m.content || '', files: [], code: '' }
   }
-  return msg
 }
 
 /** 根据文件扩展名生成对应的注释标记 */
@@ -854,7 +1214,7 @@ function extractJsonObject(raw) {
   for (let i = start; i < raw.length; i++) {
     const c = raw[i]
     if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false }
-    else { if (c === '"') inStr = true; else if (c === '{') depth++; else if (c === '}') { depth--; if (depth === 0) return JSON.parse(raw.substring(start, i + 1)) } }
+    else { if (c === '"') inStr = true; else if (c === '{') depth++; else if (c === '}') { depth--; if (depth === 0) { try { return JSON.parse(raw.substring(start, i + 1)) } catch (e) { return null } } } }
   }
   return null
 }
@@ -899,6 +1259,7 @@ function scrollToBottom() {
 
 watch(() => currentMode.value, () => { newConversation(); loadConversations() })
 watch(() => streamText.value, () => { nextTick(() => scrollToBottom()) })
+watch(showPreview, (v) => { if (!v) { pickerActive.value = false; pickedElements.value = [] } })
 </script>
 
 <style scoped>
@@ -1000,4 +1361,47 @@ watch(() => streamText.value, () => { nextTick(() => scrollToBottom()) })
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
 .deploy-url-bar { display:flex; align-items:center; justify-content:space-between; padding:4px 8px; background:#0d1117; border-top:1px solid #21262d; font-size:11px; color:var(--text-dim,#6b7280); flex-shrink:0; }
 .deploy-url-bar .deploy-key { font-family:'Fira Code',monospace; color:var(--accent,#7c8aff); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ─── 知识库 Popover ─── */
+.kb-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; border-radius: 8px;
+  background: var(--warning,#f59e0b); color: #000;
+  font-size: 10px; font-weight: 700; margin-left: 4px; padding: 0 4px;
+}
+.kb-popover { max-height: 360px; display: flex; flex-direction: column; }
+.kb-pop-header { display: flex; align-items: center; gap: 12px; }
+.kb-hint { font-size: 11px; color: var(--text-dim,#6b7280); }
+.kb-pop-list { flex: 1; overflow-y: auto; min-height: 60px; max-height: 280px; }
+.kb-empty { text-align: center; padding: 20px; color: var(--text-dim,#6b7280); font-size: 13px; }
+.kb-doc-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+.kb-doc-title { font-size: 13px; color: var(--text-primary); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+.kb-doc-type { font-size: 10px; color: var(--text-dim,#6b7280); text-transform: uppercase; background: var(--bg-secondary); padding: 1px 6px; border-radius: 4px; }
+
+/* ─── 元素选取气泡 ─── */
+.picked-elements-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 10px; border-bottom: 1px solid #21262d;
+  background: rgba(124,138,255,.06); flex-shrink: 0;
+}
+.picked-label { font-size: 11px; color: var(--text-dim,#6b7280); white-space: nowrap; }
+.picked-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 4px 2px 8px;
+  background: rgba(124,138,255,.15); border: 1px solid rgba(124,138,255,.3);
+  border-radius: 12px; font-size: 11px; color: var(--accent,#7c8aff);
+  max-width: 200px;
+}
+.picked-tag code {
+  font-family: 'Fira Code',monospace; font-size: 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: transparent; color: inherit;
+}
+.picked-tag-close {
+  width: 16px; height: 16px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.1); color: var(--text-dim,#6b7280);
+  cursor: pointer; font-size: 10px; line-height: 16px; text-align: center; padding: 0;
+  flex-shrink: 0; transition: all .15s;
+}
+.picked-tag-close:hover { background: var(--danger,#f85149); color: #fff; }
 </style>

@@ -4,6 +4,6 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan({ "org.example.mapper", "org.example.auth.mapper" })
+@MapperScan({ "org.example.mapper" })
 public class AuthConfig {
 }

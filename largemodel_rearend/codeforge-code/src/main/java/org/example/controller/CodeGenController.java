@@ -7,7 +7,6 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.request.CodeModifyRequest;
 import org.example.dto.request.GenerateCodeRequest;
@@ -34,12 +33,21 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/codegen")
-@RequiredArgsConstructor
 public class CodeGenController {
 
     private final CodeGenerationExecutor executor;
-    private final AiCodeGenService aiCodeGenService; // 用于修改和审查（暂未迁移）
+    private final AiCodeGenService aiCodeGenService; // 用于旧修改和审查（暂未迁移）
+    private final org.example.service.ai.FileModificationService fileModificationService;
     private final DeployService deployService;
+
+    public CodeGenController(CodeGenerationExecutor executor, AiCodeGenService aiCodeGenService,
+                             org.example.service.ai.FileModificationService fileModificationService,
+                             DeployService deployService) {
+        this.executor = executor;
+        this.aiCodeGenService = aiCodeGenService;
+        this.fileModificationService = fileModificationService;
+        this.deployService = deployService;
+    }
 
     /**
      * 统一 SSE 流式代码生成（新架构入口）。
@@ -58,12 +66,19 @@ public class CodeGenController {
     }
 
     /**
-     * SSE 流式代码修改（基于现有代码 + 选中元素 + 修改需求）。
-     * 暂时委托给旧 AiCodeGenService，后续迁移到策略模式。
+     * SSE 流式文件级修改（基于现有文件 + 选中元素 + 修改需求）。
+     * <p>
+     * 与代码生成不同，本端点只修改被 AI 识别为需要变更的文件，
+     * 其余文件保持不变。修改后的文件会自动写回 DB + 磁盘。
      */
     @PostMapping(value = "/modify/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter modifyStream(@RequestBody CodeModifyRequest request,
                                     @AuthenticationPrincipal User user) {
+        // 如果带 files 列表，使用文件级修改服务
+        if (request.getFiles() != null && !request.getFiles().isEmpty()) {
+            return fileModificationService.modifyFiles(request, user.getId());
+        }
+        // 回退：旧拼接代码格式
         return aiCodeGenService.modifyCodeStream(request, user.getId());
     }
 

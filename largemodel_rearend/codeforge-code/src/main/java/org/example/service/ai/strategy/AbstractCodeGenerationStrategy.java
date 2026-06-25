@@ -78,6 +78,13 @@ public abstract class AbstractCodeGenerationStrategy implements CodeGenerationSt
     public SseEmitter generate(GenerateCodeRequest request, Long userId) {
         validateRequest(request);
         String systemPrompt = selectSystemPrompt(request);
+
+        // ── 注入知识库上下文到 System Prompt ──
+        String kbContext = request.getKnowledgeContext();
+        if (kbContext != null && !kbContext.isBlank()) {
+            systemPrompt = systemPrompt + kbContext;
+        }
+
         List<ChatMessage> messages = buildMessages(systemPrompt, request);
         SseEmitter emitter = doStream(messages, request, userId);
         return emitter;
@@ -199,12 +206,12 @@ public abstract class AbstractCodeGenerationStrategy implements CodeGenerationSt
                                     .data(toJsonWrap(MAPPER.writeValueAsString(done))));
                             emitter.complete();
                             log.info("SSE 流式完成, mode={}, 长度={}", supportedMode(), raw.length());
-                            logCall(raw, request.getModelId(), start, firstTokenAt, true, null);
+                            logCall(raw, request.getModelId(), start, firstTokenAt, true, null, userId);
                         } catch (IOException e) {
                             log.debug("SSE done 发送失败, 客户端已断开");
                         } catch (Exception e) {
                             log.error("SSE done 处理异常: {}", e.getMessage());
-                            logCall(full.toString(), request.getModelId(), start, firstTokenAt, false, e.getMessage());
+                            logCall(full.toString(), request.getModelId(), start, firstTokenAt, false, e.getMessage(), userId);
                         }
                     }
 
@@ -214,7 +221,7 @@ public abstract class AbstractCodeGenerationStrategy implements CodeGenerationSt
                         completed.set(true);
                         log.error("SSE 流式异常: {}", e.getMessage());
                         safeSendError(emitter, toJsonWrap("生成失败: " + e.getMessage()));
-                        logCall(full.toString(), request.getModelId(), start, firstTokenAt, false, e.getMessage());
+                        logCall(full.toString(), request.getModelId(), start, firstTokenAt, false, e.getMessage(), userId);
                         try { emitter.completeWithError(e); } catch (Exception ignored) {}
                     }
                 });
@@ -223,7 +230,7 @@ public abstract class AbstractCodeGenerationStrategy implements CodeGenerationSt
                 completed.set(true);
                 log.error("SSE 启动失败: {}", e.getMessage());
                 safeSendError(emitter, toJsonWrap("服务内部错误: " + e.getMessage()));
-                logCall("", request.getModelId(), start, firstTokenAt, false, e.getMessage());
+                logCall("", request.getModelId(), start, firstTokenAt, false, e.getMessage(), userId);
                 try { emitter.completeWithError(e); } catch (Exception ignored) {}
             }
         });
@@ -339,7 +346,7 @@ public abstract class AbstractCodeGenerationStrategy implements CodeGenerationSt
     // ─── 日志 ───
 
     protected void logCall(String raw, Long modelId, long start, AtomicLong firstTokenAt,
-                           boolean success, String error) {
+                           boolean success, String error, Long userId) {
         try {
             String model = "default";
             if (modelId != null) {
@@ -353,7 +360,7 @@ public abstract class AbstractCodeGenerationStrategy implements CodeGenerationSt
             long latency = firstTokenAt.get() > 0
                     ? firstTokenAt.get() - start
                     : System.currentTimeMillis() - start;
-            monitorService.record("/api/codegen/stream", null, model, tokens, latency, success, error);
+            monitorService.record("/api/codegen/stream", userId, model, tokens, latency, success, error);
         } catch (Exception ignored) {}
     }
 

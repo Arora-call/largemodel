@@ -10,7 +10,6 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.example.dto.request.CodeModifyRequest;
 import org.example.dto.request.GenerateCodeRequest;
 import org.example.entity.User;
@@ -22,10 +21,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/ai")
-@RequiredArgsConstructor
 public class AiController {
 
     private final AiCodeGenService aiCodeGenService;
+    private final org.example.service.ai.FileModificationService fileModificationService;
+
+    public AiController(AiCodeGenService aiCodeGenService,
+                        org.example.service.ai.FileModificationService fileModificationService) {
+        this.aiCodeGenService = aiCodeGenService;
+        this.fileModificationService = fileModificationService;
+    }
 
     /**
      * SSE 流式代码生成
@@ -37,11 +42,14 @@ public class AiController {
     }
 
     /**
-     * SSE 流式代码修改——基于现有代码 + 选中元素 + 修改需求
+     * SSE 流式代码修改——基于现有文件 + 选中元素 + 修改需求
      */
     @PostMapping(value = "/modify/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter modifyStream(@RequestBody CodeModifyRequest request,
                                     @AuthenticationPrincipal User user) {
+        if (request.getFiles() != null && !request.getFiles().isEmpty()) {
+            return fileModificationService.modifyFiles(request, user.getId());
+        }
         return aiCodeGenService.modifyCodeStream(request, user.getId());
     }
 }

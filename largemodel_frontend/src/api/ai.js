@@ -6,9 +6,9 @@
  *   event: done       → 生成完成 + 完整代码
  *   event: error      → 错误信息
  */
-/** 流式代码修改 */
+/** 流式代码修改（文件级） */
 export function modifyCodeStream(data, { onToken, onDone, onError, signal }) {
-  return streamRequest('/api/ai/modify/stream', data, { onToken, onDone, onError, signal })
+  return streamRequest('/api/codegen/modify/stream', data, { onToken, onDone, onError, signal })
 }
 
 /** 流式代码生成 */

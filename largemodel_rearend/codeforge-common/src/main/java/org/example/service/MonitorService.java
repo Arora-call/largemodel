@@ -48,4 +48,27 @@ public class MonitorService {
     public List<Map<String, Object>> modelDist() {
         return logMapper.modelDistribution();
     }
+
+    // ── 用户级统计 ──
+
+    public Map<String, Object> overviewForUser(Long userId) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("todayCalls", logMapper.countTodayByUser(userId));
+        m.put("successRate", Math.round(logMapper.successRateByUser(userId) * 10) / 10.0);
+        m.put("todayTokens", logMapper.todayTokensByUser(userId));
+        m.put("avgLatency", logMapper.avgLatencyByUser(userId));
+        return m;
+    }
+
+    public List<Map<String, Object>> callTrendForUser(int days, Long userId) {
+        return logMapper.dailyCallsByUser(days, userId);
+    }
+
+    public List<Map<String, Object>> tokenTrendForUser(int days, Long userId) {
+        return logMapper.dailyTokensByUser(days, userId);
+    }
+
+    public List<Map<String, Object>> modelDistForUser(Long userId) {
+        return logMapper.modelDistributionByUser(userId);
+    }
 }

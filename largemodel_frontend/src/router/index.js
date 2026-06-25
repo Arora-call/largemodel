@@ -85,6 +85,12 @@ const routes = [
         meta: { title: '系统日志', requiresAuth: true, requiresAdmin: true }
       },
       {
+        path: 'admin/applications',
+        name: 'AdminApplications',
+        component: () => import('@/views/admin/Applications.vue'),
+        meta: { title: '应用管理', requiresAuth: true, requiresAdmin: true }
+      },
+      {
         path: 'knowledge',
         name: 'Knowledge',
         component: () => import('@/views/knowledge/Index.vue'),

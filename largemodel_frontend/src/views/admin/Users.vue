@@ -40,7 +40,6 @@
       <el-table
         v-loading="loading"
         :data="userList"
-        stripe
         border
       >
         <el-table-column prop="id" label="ID" width="70" align="center" />

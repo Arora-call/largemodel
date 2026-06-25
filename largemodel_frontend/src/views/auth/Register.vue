@@ -51,7 +51,7 @@
       <el-form-item prop="email">
         <el-input
           v-model="form.email"
-          placeholder="邮箱（选填）"
+          placeholder="邮箱（必填）"
           :prefix-icon="Message"
         />
       </el-form-item>
@@ -119,6 +119,7 @@ const rules = {
     { validator: validateConfirmPassword, trigger: 'blur' }
   ],
   email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
   ]
 }
