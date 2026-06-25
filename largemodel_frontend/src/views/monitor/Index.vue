@@ -154,7 +154,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.monitor-page { max-width: 1400px; }
+.monitor-page { max-width: 1200px; margin: 0 auto; }
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .chart-card { background: var(--bg-card) !important; border-color: var(--border-color) !important; }

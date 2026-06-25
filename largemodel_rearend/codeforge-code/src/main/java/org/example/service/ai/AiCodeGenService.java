@@ -390,8 +390,8 @@ public class AiCodeGenService {
 
     private String getSystemPrompt(GenerateCodeRequest r) {
         return "ENGINEERING".equalsIgnoreCase(r.getType())
-                ? promptService.getEngineeringProjectSystemPrompt()
-                : promptService.getNativeAppSystemPrompt(r.getLanguage());
+                ? promptService.getProjectSystemPrompt()
+                : promptService.getSingleFileSystemPrompt();
     }
 
     private List<ChatMessage> loadHistory(Long conversationId) {

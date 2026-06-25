@@ -12,7 +12,7 @@ spring:
         - id: code-service
           uri: http://code-service:8082
           predicates:
-            - Path=/api/ai/**,/api/projects/**,/api/applications/**,/api/conversations/**,/api/dashboard/**
+            - Path=/api/ai/**,/api/projects/**,/api/applications/**,/api/conversations/**,/api/dashboard/**,/api/codegen/**
         # Knowledge Service (:8083)
         - id: knowledge-service
           uri: http://knowledge-service:8083

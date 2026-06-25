@@ -22,14 +22,9 @@
           <template #title>工作台</template>
         </el-menu-item>
 
-        <el-menu-item index="/ai/generate">
+        <el-menu-item index="/workspace">
           <el-icon><MagicStick /></el-icon>
-          <template #title>AI 代码生成</template>
-        </el-menu-item>
-
-        <el-menu-item index="/project/create">
-          <el-icon><FolderAdd /></el-icon>
-          <template #title>创建项目</template>
+          <template #title>AI 工作台</template>
         </el-menu-item>
 
         <el-menu-item index="/app/list">
@@ -105,13 +100,6 @@
         </div>
 
         <div class="topbar-right">
-          <!-- 快捷搜索（装饰性） -->
-          <div class="search-trigger">
-            <el-icon><Search /></el-icon>
-            <span>搜索...</span>
-            <kbd>⌘K</kbd>
-          </div>
-
           <el-dropdown trigger="click" @command="handleCommand" popper-class="user-dropdown">
             <div class="user-trigger">
               <el-avatar :size="30" :src="avatarSrc">
@@ -188,7 +176,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Odometer, User, UserFilled, Setting,
   Fold, Expand, SwitchButton, MagicStick, FolderOpened, FolderAdd,
-  Plus, Close, Search, ArrowDown, Collection, Connection, DataAnalysis,
+  Plus, Close, ArrowDown, Collection, Connection, DataAnalysis,
   Box, Tickets
 } from '@element-plus/icons-vue'
 
@@ -196,7 +184,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-const isCollapse = ref(false)
+const isCollapse = ref(true)
 
 const activeMenu = computed(() => route.path)
 
@@ -204,8 +192,7 @@ const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => {
   const titles = {
     '/dashboard': '工作台',
-    '/ai/generate': 'AI 代码生成',
-    '/project/create': '创建项目',
+    '/workspace': 'AI 工作台',
     '/app/list': '我的应用',
     '/knowledge': '知识库',
     '/agents': 'Agent 工作流',

@@ -29,13 +29,3 @@ export function semanticSearch(query, params = {}) {
 export function listCollections() {
   return request.get('/knowledge/collections')
 }
-
-// 创建集合
-export function createCollection(data) {
-  return request.post('/knowledge/collections', data)
-}
-
-// 删除集合
-export function deleteCollection(id) {
-  return request.delete(`/knowledge/collections/${id}`)
-}

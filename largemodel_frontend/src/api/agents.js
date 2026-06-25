@@ -18,6 +18,11 @@ export function getWorkflow(id) {
   return request.get(`/agents/workflow/${id}`)
 }
 
+// 更新工作流
+export function updateWorkflow(id, data) {
+  return request.put(`/agents/workflow/${id}`, data)
+}
+
 // 删除工作流
 export function deleteWorkflow(id) {
   return request.delete(`/agents/workflow/${id}`)
@@ -41,6 +46,10 @@ export function executeWorkflowStream(id, params, callbacks) {
     },
     body: JSON.stringify(params)
   }).then(async response => {
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(text || `HTTP ${response.status}`)
+    }
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -50,25 +59,44 @@ export function executeWorkflowStream(id, params, callbacks) {
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+      // SSE 事件以双换行分隔
+      const blocks = buffer.split(/\n\n|\r\n\r\n/)
+      buffer = blocks.pop() || ''
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          // handle event type change
-          continue
+      for (const block of blocks) {
+        if (!block.trim()) continue
+        // 提取 data: 行（支持多行 data）
+        const dataLines = []
+        for (const line of block.split('\n')) {
+          if (line.startsWith('data: ')) {
+            dataLines.push(line.slice(6))
+          }
         }
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            if (data.type === 'phase') onPhase?.(data)
-            else if (data.type === 'progress') onProgress?.(data)
-            else if (data.type === 'done') onDone?.(data)
-          } catch { /* ignore parse errors */ }
-        }
+        if (!dataLines.length) continue
+        const raw = dataLines.join('\n')
+        try {
+          const data = JSON.parse(raw)
+          if (data.type === 'phase') onPhase?.(data)
+          else if (data.type === 'progress') onProgress?.(data)
+          else if (data.type === 'done') onDone?.(data)
+          else if (data.type === 'error') onError?.(new Error(data.error || 'Agent 执行出错'))
+          // 兼容无 type 字段：从 event 名推断
+          else if (data.phase && !data.token) onPhase?.(data)
+          else if (data.token) onProgress?.(data)
+          else if (data.status) onDone?.(data)
+        } catch { /* ignore parse errors */ }
       }
     }
-    onDone?.({})
+    // 处理剩余 buffer
+    if (buffer.trim()) {
+      try {
+        const m = buffer.match(/data:\s?(.+)/)
+        if (m) {
+          const data = JSON.parse(m[1])
+          if (data.type === 'done' || data.status) onDone?.(data)
+        }
+      } catch { /* ignore */ }
+    }
   }).catch(err => {
     onError?.(err)
   })

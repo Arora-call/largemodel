@@ -60,7 +60,7 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-.logs-page { max-width: 1400px; }
+.logs-page { max-width: 1200px; margin: 0 auto; }
 .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
 .table-card { background: var(--bg-card) !important; border-color: var(--border-color) !important; }
 .pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }

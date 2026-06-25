@@ -38,4 +38,6 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     void deactivateByUserId(@Param("userId") Long userId);
 
     long countByUserIdAndStatus(Long userId, Integer status);
+
+    List<Conversation> findByApplicationIdOrderByUpdatedAtDesc(Long applicationId);
 }

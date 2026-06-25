@@ -27,4 +27,13 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
 
     @Select("SELECT COUNT(*) FROM knowledge_documents WHERE user_id = #{userId} AND status = 1")
     long countByUserId(@Param("userId") Long userId);
+
+    @Select("SELECT COUNT(DISTINCT collection) FROM knowledge_documents WHERE user_id = #{userId} AND status = 1")
+    long countCollectionsByUserId(@Param("userId") Long userId);
+
+    @Select("SELECT DISTINCT collection FROM knowledge_documents WHERE user_id = #{userId} AND status = 1 ORDER BY collection")
+    List<String> findCollectionsByUserId(@Param("userId") Long userId);
+
+    @Select("SELECT * FROM knowledge_documents WHERE collection = #{collection} AND user_id = #{userId} AND status = 1")
+    List<KnowledgeDocument> findByCollectionAndUserId(@Param("collection") String collection, @Param("userId") Long userId);
 }

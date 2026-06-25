@@ -36,11 +36,17 @@ const routes = [
         component: () => import('@/views/dashboard/Index.vue'),
         meta: { title: '工作台', requiresAuth: true }
       },
+      // 旧路由 → 重定向到 AI 工作台
       {
         path: 'ai/generate',
-        name: 'AiGenerate',
-        component: () => import('@/views/ai/Generate.vue'),
+        redirect: '/workspace',
         meta: { title: 'AI代码生成', requiresAuth: true }
+      },
+      {
+        path: 'workspace',
+        name: 'CodeGenWorkspace',
+        component: () => import('@/views/ai/CodeGenWorkspace.vue'),
+        meta: { title: 'AI 工作台', requiresAuth: true }
       },
       {
         path: 'user/profile',
@@ -54,10 +60,10 @@ const routes = [
         component: () => import('@/views/app/AppList.vue'),
         meta: { title: '我的应用', requiresAuth: true }
       },
+      // 旧路由 → 重定向到 AI 工作台
       {
         path: 'project/create',
-        name: 'ProjectCreate',
-        component: () => import('@/views/project/Create.vue'),
+        redirect: '/workspace',
         meta: { title: '创建项目', requiresAuth: true }
       },
       {

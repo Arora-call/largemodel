@@ -13,7 +13,7 @@ export function getApplication(id) {
 }
 
 export function updateApplication(id, data) {
-  return request.post('/applications', { id, ...data })
+  return request.put(`/applications/${id}`, data)
 }
 
 export function deleteApplication(id) {
@@ -79,4 +79,14 @@ export function deleteProject(id) {
 
 export function getDashboardStats() {
   return request.get('/dashboard/stats')
+}
+
+/** 导出对话为 Markdown */
+export async function exportConversation(convId) {
+  const token = localStorage.getItem('token')
+  const resp = await fetch(`/api/conversations/${convId}/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  })
+  if (!resp.ok) throw new Error('导出失败')
+  return resp.text()
 }

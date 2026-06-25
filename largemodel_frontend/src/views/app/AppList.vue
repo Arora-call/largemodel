@@ -15,12 +15,11 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-select v-model="langFilter" placeholder="全部语言" clearable size="default" style="width:130px" @change="fetchList">
+        <el-select v-model="typeFilter" placeholder="全部类型" clearable size="default" style="width:130px" @change="fetchList">
           <el-option label="全部" value="" />
-          <el-option label="Vue" value="vue" />
-          <el-option label="Java" value="java" />
-          <el-option label="HTML" value="html" />
-          <el-option label="Python" value="python" />
+          <el-option label="单文件" value="SINGLE_FILE" />
+          <el-option label="多文件" value="MULTI_FILE" />
+          <el-option label="Vue3项目" value="VUE_PROJECT" />
         </el-select>
       </div>
     </div>
@@ -37,10 +36,10 @@
 
     <!-- App grid -->
     <div v-else class="app-grid">
-      <div v-for="app in apps" :key="app.id" class="app-card" @click="viewDetail(app)">
+      <div v-for="app in apps" :key="app.id" class="app-card" @click="openApp(app)">
         <div class="card-top">
           <div class="card-type-badge" :class="app.type === 'ENGINEERING' ? 'type-project' : 'type-native'">
-            {{ app.type === 'ENGINEERING' ? '📦 工程' : '⚡ 原生' }}
+            {{ typeLabel(app.type) }}
           </div>
           <span class="card-lang">{{ app.language || 'code' }}</span>
         </div>
@@ -51,10 +50,22 @@
         <div class="card-footer">
           <span class="card-date">{{ app.updatedAt?.substring(0, 10) || '-' }}</span>
           <div class="card-actions">
+            <button class="card-btn deploy-btn"
+              :class="{ deploying: deployingAppId === app.id }"
+              @click.stop="handleDeployApp(app)"
+              :disabled="deployingAppId === app.id"
+              title="部署预览">
+              {{ deployingAppId === app.id ? '⏳' : '🚀' }}
+            </button>
             <button class="card-btn edit-btn" @click.stop="openRename(app)" title="重命名">✏️</button>
             <button class="card-btn download-btn" @click.stop="handleDownload(app)" title="下载">⬇</button>
             <button class="card-btn delete-btn" @click.stop="confirmDelete(app)" title="删除">🗑</button>
           </div>
+        </div>
+        <!-- 部署成功 → 显示 URL -->
+        <div v-if="deployUrls[app.id]" class="card-deploy-url" @click.stop>
+          <a :href="deployUrls[app.id]" target="_blank" class="deploy-link">{{ deployUrls[app.id] }}</a>
+          <button class="copy-btn" @click.stop="copyDeployUrl(app.id)" title="复制">📋</button>
         </div>
       </div>
     </div>
@@ -73,21 +84,17 @@
       />
     </div>
 
-    <!-- Detail dialog — 项目结构 + 代码查看 + 重新编辑 -->
-    <el-dialog v-model="detailVisible" :title="detailApp?.name || '应用详情'" width="860px" destroy-on-close top="3vh">
+    <!-- Detail dialog — 部署预览 + 重命名 + 下载 -->
+    <el-dialog v-model="detailVisible" :title="detailApp?.name || '应用详情'" width="660px" destroy-on-close top="3vh">
       <div v-if="detailApp" class="detail-container">
         <div class="detail-meta">
           <div class="meta-item">
             <span class="meta-label">类型</span>
-            <span class="meta-value">{{ detailApp.type === 'ENGINEERING' ? '📦 工程项目' : '⚡ 原生应用' }}</span>
+            <span class="meta-value">{{ typeLabel(detailApp.type) }}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">语言</span>
             <span class="meta-value">{{ detailApp.language || '-' }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">文件数</span>
-            <span class="meta-value">{{ projectFiles.length }} 个</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">更新时间</span>
@@ -95,59 +102,40 @@
           </div>
         </div>
 
-        <!-- 文件树 + 代码查看双栏 -->
-        <div class="detail-filetree-panel" v-if="isEngineering">
-          <div class="filetree-sidebar">
-            <div class="filetree-header">📂 项目文件</div>
-            <div class="filetree-list">
-              <div
-                v-for="f in projectFiles"
-                :key="f"
-                class="filetree-node"
-                :class="{ active: selectedDetailFile === f }"
-                @click="selectDetailFile(f)"
-              >
-                <span class="filetree-icon">{{ f.endsWith('/') ? '📁' : iconForFile(f) }}</span>
-                <span class="filetree-name">{{ f }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="filetree-code">
-            <CodeViewer
-              v-if="selectedDetailCode !== null"
-              :code="selectedDetailCode"
-              :language="detailApp.language || 'text'"
-              height="360px"
-              max-height="360px"
-            />
-            <div v-else class="no-file-selected">👈 从左侧文件列表选择文件查看代码</div>
-          </div>
-        </div>
-
-        <!-- 原生应用：直接展示代码 -->
-        <div v-else class="detail-block">
-          <div class="code-area">
-            <CodeViewer
-              v-if="detailApp?.sourceCode"
-              :code="detailApp.sourceCode.substring(0, 5000)"
-              :language="detailApp.language || 'text'"
-              height="360px"
-              max-height="360px"
-            />
-            <p v-else class="no-code">无代码</p>
-          </div>
+        <!-- 封面 -->
+        <div class="detail-cover" v-if="detailApp.coverImage">
+          <img :src="detailApp.coverImage" alt="封面" @error="e => e.target.style.display='none'" />
         </div>
 
         <div class="detail-actions">
-          <el-button v-if="isEngineering" type="primary" @click="openInEditor(detailApp)">
-            ✏️ 在项目创建中编辑
+          <el-button type="primary" @click="openInWorkspace(detailApp)">
+            ✏️ 打开编辑
+          </el-button>
+          <el-button type="warning" :loading="deploying" @click="handleDeployApp(detailApp)">
+            🚀 部署预览
           </el-button>
           <el-button @click="handleDownload(detailApp)">
             <el-icon><Download /></el-icon> 下载 ZIP
           </el-button>
+          <el-button @click="openRename(detailApp); detailVisible = false">
+            ✏️ 重命名
+          </el-button>
           <el-button type="danger" plain @click="detailVisible = false; confirmDelete(detailApp)">
             <el-icon><Delete /></el-icon> 删除
           </el-button>
+        </div>
+
+        <!-- Nginx 部署预览 -->
+        <div v-if="deployedUrl" class="deploy-preview">
+          <div class="deploy-preview-header">
+            <span>🚀 部署预览</span>
+            <div>
+              <el-button size="small" text @click="copyUrl">📋 复制 URL</el-button>
+              <el-button size="small" text @click="openDeployUrl">🔗 新窗口打开</el-button>
+            </div>
+          </div>
+          <div class="deploy-url">{{ deployedUrl }}</div>
+          <iframe :src="deployedUrl" class="deploy-iframe"></iframe>
         </div>
       </div>
     </el-dialog>
@@ -168,12 +156,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Download, Delete } from '@element-plus/icons-vue'
-import { listApplications, getApplication, deleteApplication, downloadApplication, updateApplication } from '@/api/app'
-import CodeViewer from '@/components/CodeViewer.vue'
+import { listApplications, deleteApplication, downloadApplication, updateApplication } from '@/api/app'
+import { deployByAppId } from '@/api/ai'
 
 const router = useRouter()
 
@@ -183,29 +171,33 @@ const total = ref(0)
 const size = ref(12)
 const currentPage = ref(1)
 const keyword = ref('')
-const langFilter = ref('')
+const typeFilter = ref('')
 const detailVisible = ref(false)
 const detailApp = ref(null)
-
-const projectFiles = computed(() => {
-  try {
-    const cfg = JSON.parse(detailApp.value?.configJson || '{}')
-    return cfg.files || cfg.tree?.map(f => f.path) || (Array.isArray(cfg) ? cfg.map(f => f.path || f) : [])
-  } catch { return [] }
-})
-const isEngineering = computed(() => detailApp.value?.type === 'ENGINEERING')
-const selectedDetailFile = ref('')
-const selectedDetailCode = ref(null)
-
-function iconForFile(path) {
-  const ext = path.split('.').pop()?.toLowerCase()
-  const map = { vue: '🟩', js: '🟨', ts: '🟦', html: '🟧', css: '🟦', json: '📋', py: '🐍', java: '☕', xml: '📋', md: '📝' }
-  return map[ext] || '📄'
-}
 
 const renameVisible = ref(false)
 const renameApp = ref(null)
 const renameName = ref('')
+const deployedUrl = ref('')
+const deploying = ref(false)
+const deployingAppId = ref(null)        // 正在部署的卡片 ID
+const deployUrls = reactive({})         // appId → URL 缓存
+
+function typeLabel(type) {
+  const map = { SINGLE_FILE: '⚡ 单文件', MULTI_FILE: '📦 多文件', VUE_PROJECT: '🟩 Vue3项目', ENGINEERING: '📦 工程' }
+  return map[type] || type || '-'
+}
+
+/** 点击卡片 → 跳转 AI 工作台并加载关联对话 */
+function openApp(app) {
+  router.push({ path: '/workspace', query: { appId: app.id } })
+}
+
+/** 打开应用对应的对话编辑 */
+function openInWorkspace(app) {
+  detailVisible.value = false
+  router.push({ path: '/workspace', query: { appId: app.id } })
+}
 
 function openRename(app) {
   renameApp.value = app
@@ -224,19 +216,48 @@ async function handleRename() {
   } catch { ElMessage.error('重命名失败') }
 }
 
-function selectDetailFile(filePath) {
-  selectedDetailFile.value = filePath
-  // 从 sourceCode 中提取对应文件的代码
-  const code = detailApp.value?.sourceCode || ''
-  const marker = '// ===== ' + filePath + ' ====='
-  const regex = new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\n([\\s\\S]*?)(?=\\n// ===== |$)', 'g')
-  const match = regex.exec(code)
-  selectedDetailCode.value = match ? match[1].trim() : '// 代码未找到'
+async function handleDeployApp(app) {
+  deployingAppId.value = app.id
+  deploying.value = true
+  deployedUrl.value = ''
+  try {
+    const res = await deployByAppId(app.id)
+    if (res?.code === 200 && res?.data) {
+      deployedUrl.value = res.data.url
+      deployUrls[app.id] = res.data.url
+      ElMessage.success('部署成功！')
+    } else {
+      ElMessage.error(res?.message || '部署失败')
+    }
+  } catch (e) {
+    ElMessage.error('部署失败: ' + e.message)
+  } finally {
+    deployingAppId.value = null
+    deploying.value = false
+  }
 }
 
-function openInEditor(app) {
-  detailVisible.value = false
-  router.push({ path: '/project/create', query: { projectId: app.id } })
+function copyDeployUrl(appId) {
+  const url = deployUrls[appId]
+  if (url) {
+    navigator.clipboard.writeText(url).then(
+      () => ElMessage.success('URL 已复制'),
+      () => ElMessage.info(url)
+    )
+  }
+}
+
+function copyUrl() {
+  if (deployedUrl.value) {
+    navigator.clipboard.writeText(deployedUrl.value).then(
+      () => ElMessage.success('已复制'),
+      () => ElMessage.info('请手动复制')
+    )
+  }
+}
+
+function openDeployUrl() {
+  if (deployedUrl.value) window.open(deployedUrl.value, '_blank')
 }
 
 async function handleDownload(app) {
@@ -249,20 +270,12 @@ async function fetchList() {
   try {
     const res = await listApplications({
       page: currentPage.value - 1, size: size.value,
-      keyword: keyword.value, language: langFilter.value
+      keyword: keyword.value, type: typeFilter.value
     })
     apps.value = res.data.content || []
     total.value = res.data.totalElements || 0
   } catch { apps.value = []; total.value = 0 }
   finally { loading.value = false }
-}
-
-async function viewDetail(app) {
-  try {
-    const res = await getApplication(app.id)
-    detailApp.value = res.data
-    detailVisible.value = true
-  } catch { ElMessage.error('加载详情失败') }
 }
 
 async function confirmDelete(app) {
@@ -444,10 +457,49 @@ onMounted(fetchList)
   border-color: var(--accent);
 }
 
+.deploy-btn:hover {
+  background: rgba(251, 146, 60, 0.15);
+  border-color: #fb923c;
+}
+.deploy-btn.deploying {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .delete-btn:hover {
   background: var(--danger-bg);
   border-color: var(--danger);
 }
+.card-deploy-url {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(124, 138, 255, 0.08);
+  border-top: 1px solid rgba(124, 138, 255, 0.2);
+  margin: 0;
+}
+.deploy-link {
+  flex: 1;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--accent, #7c8aff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.deploy-link:hover { text-decoration: underline; }
+.copy-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .pagination-area {
   margin-top: 24px;
@@ -456,102 +508,20 @@ onMounted(fetchList)
 }
 
 /* ====== Detail Dialog ====== */
+.detail-container { display: flex; flex-direction: column; gap: 16px; }
 .detail-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
-  margin-bottom: 20px;
 }
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.meta-label {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.meta-value {
-  font-size: 14px;
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.detail-block {
-  margin-bottom: 20px;
-}
-
-.detail-block h5 {
-  font-size: 13px;
-  color: var(--text-heading);
-  margin: 0 0 10px;
-}
-
-.file-list {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-}
-
-.file-item {
-  font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 3px 0 3px 16px;
-  position: relative;
-}
-
-.file-item::before {
-  content: '└';
-  position: absolute;
-  left: 0;
-  color: var(--text-dim);
-}
-
-.dep-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.dep-tag {
-  margin: 0;
-}
-
-.code-area {
-  background: var(--bg-code);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.no-code {
-  color: var(--text-dim);
-  padding: 20px;
-  text-align: center;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-}
-.detail-container { display: flex; flex-direction: column; gap: 16px; }
-.detail-filetree-panel { display: flex; gap: 0; border: 1px solid var(--border-color); border-radius: var(--radius); overflow: hidden; min-height: 360px; }
-.filetree-sidebar { width: 260px; flex-shrink: 0; background: var(--bg-secondary); border-right: 1px solid var(--border-color); overflow-y: auto; }
-.filetree-header { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--text-heading); border-bottom: 1px solid var(--border-color); }
-.filetree-list { padding: 4px 0; }
-.filetree-node { padding: 5px 14px 5px 20px; font-size: 12px; font-family: 'SF Mono','Fira Code',monospace; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; }
-.filetree-node:hover { background: var(--bg-hover); color: var(--text-primary); }
-.filetree-node.active { background: var(--accent-bg); color: var(--accent); }
-.filetree-icon { font-size: 13px; flex-shrink: 0; }
-.filetree-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.filetree-code { flex: 1; background: var(--bg-code); min-width: 0; }
-.no-file-selected { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 13px; }
+.meta-item { display: flex; flex-direction: column; gap: 4px; }
+.meta-label { font-size: 12px; color: var(--text-dim); }
+.meta-value { font-size: 14px; color: var(--text-primary); font-weight: 500; }
+.detail-cover { border-radius: var(--radius); overflow: hidden; max-height: 200px; }
+.detail-cover img { width: 100%; height: 200px; object-fit: cover; }
+.detail-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border-color); flex-wrap: wrap; }
+.deploy-preview { border: 1px solid var(--accent,#7c8aff); border-radius: var(--radius); overflow: hidden; margin-top: 8px; }
+.deploy-preview-header { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(124,138,255,.1); font-size:13px; font-weight:600; }
+.deploy-url { padding:6px 12px; font-family:'Fira Code',monospace; font-size:11px; color:var(--accent,#7c8aff); background:var(--bg-code); }
+.deploy-iframe { width:100%; height:420px; border:none; }
 </style>

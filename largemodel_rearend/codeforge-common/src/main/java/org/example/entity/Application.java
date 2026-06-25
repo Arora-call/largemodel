@@ -1,10 +1,11 @@
 /**
  * 模块：应用管理
- * 功能：应用实体，映射applications表，存储AI生成的代码应用
+ * 功能：应用实体，存储 AI 生成的应用元信息（代码文件存磁盘，不存 DB）
  * 作者：yx
  * 创建时间：2026-06-17
  * 修改记录：
  *  2026-06-17 初始化代码
+ *  2026-06-25 新增 deployKey/initPrompt/priority/genStatus，sourceCode 改为废弃（改用磁盘存储）
  */
 package org.example.entity;
 
@@ -39,12 +40,12 @@ public class Application {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    /** NATIVE: 原生应用, ENGINEERING: 工程项目 */
+    /** 代码生成类型: SINGLE_FILE / MULTI_FILE / VUE_PROJECT */
     @Column(nullable = false, length = 50)
     @Builder.Default
-    private String type = "NATIVE";
+    private String type = "SINGLE_FILE";
 
-    /** 编程语言: java / vue / python / html 等 */
+    /** 编程语言: html / vue / javascript 等 */
     @Column(length = 50)
     private String language;
 
@@ -56,6 +57,17 @@ public class Application {
     @Builder.Default
     private Integer status = 1;
 
+    /** 生成状态: generating / completed / failed */
+    @Column(name = "gen_status", length = 20)
+    @Builder.Default
+    private String genStatus = "completed";
+
+    /** 创建应用时的初始 Prompt（便于复现和调试） */
+    @Column(name = "init_prompt", columnDefinition = "TEXT")
+    private String initPrompt;
+
+    /** @deprecated 代码改为磁盘存储，此字段仅保留历史数据兼容 */
+    @Deprecated
     @Column(name = "source_code", columnDefinition = "MEDIUMTEXT")
     private String sourceCode;
 
@@ -65,6 +77,19 @@ public class Application {
     /** 封面图URL */
     @Column(name = "cover_image", length = 500)
     private String coverImage;
+
+    /** 部署标识 — 6 位字母数字唯一 ID，作为访问路径 /<deployKey>/ */
+    @Column(name = "deploy_key", length = 10, unique = true)
+    private String deployKey;
+
+    /** 部署时间 */
+    @Column(name = "deployed_time")
+    private LocalDateTime deployedTime;
+
+    /** 优先级: 0-默认, 99-精选, 999-置顶 */
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 0")
+    @Builder.Default
+    private Integer priority = 0;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

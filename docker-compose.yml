@@ -107,6 +107,7 @@ services:
       - JAVA_TOOL_OPTIONS=-Xmx512m
     volumes:
       - uploads_data:/app/uploads
+      - deploy_data:/app/tmp/code_deploy
     depends_on:
       nacos:
         condition: service_healthy
@@ -223,8 +224,11 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - gateway
+    volumes:
+      - deploy_data:/var/www/deployed
 
 volumes:
   mysql_data:
   uploads_data:
   nacos_data:
+  deploy_data:

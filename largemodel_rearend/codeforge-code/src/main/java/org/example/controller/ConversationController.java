@@ -9,13 +9,15 @@
 package org.example.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.response.ApiResponse;
 import org.example.entity.Conversation;
 import org.example.entity.Message;
 import org.example.entity.User;
+import org.example.mapper.MessageMapper;
 import org.example.repository.ConversationRepository;
 import org.example.repository.MessageRepository;
+import org.example.service.DeployService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,13 +30,23 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/conversations")
-@RequiredArgsConstructor
 public class ConversationController {
 
     private final ConversationRepository convRepo;
     private final MessageRepository msgRepo;
+    private final MessageMapper messageMapper;
+    private final DeployService deployService;
+
+    public ConversationController(ConversationRepository convRepo, MessageRepository msgRepo,
+                                   MessageMapper messageMapper, DeployService deployService) {
+        this.convRepo = convRepo;
+        this.msgRepo = msgRepo;
+        this.messageMapper = messageMapper;
+        this.deployService = deployService;
+    }
 
     /** 对话列表，可按 type 过滤 (NATIVE / ENGINEERING) */
     @GetMapping
@@ -70,14 +82,24 @@ public class ConversationController {
         return ApiResponse.success(result);
     }
 
-    /** 删除对话 */
+    /** 删除对话 — 级联清理消息、project_files、磁盘文件 */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id, @AuthenticationPrincipal User user) {
         Conversation c = convRepo.findById(id).orElse(null);
-        if (c != null) {
-            c.setStatus(0);
-            convRepo.save(c);
-        }
+        if (c == null) return ApiResponse.msg("已删除");
+        if (!c.getUserId().equals(user.getId())) return ApiResponse.error("无权操作");
+
+        // 1. 软删除对话
+        c.setStatus(0);
+        convRepo.save(c);
+
+        // 2. 删除 messages 表
+        int msgCount = messageMapper.deleteByConversationId(id);
+        log.info("删除对话消息: conversationId={}, 消息数={}", id, msgCount);
+
+        // 3. 删除 project_files 表 + 磁盘文件
+        deployService.cleanupConversation(id);
+
         return ApiResponse.msg("已删除");
     }
 

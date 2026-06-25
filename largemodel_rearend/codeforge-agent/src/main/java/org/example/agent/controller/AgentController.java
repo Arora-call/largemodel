@@ -57,6 +57,17 @@ public class AgentController {
         return ApiResponse.success(agentService.getById(id, user.getId()));
     }
 
+    /** 更新工作流 */
+    @PutMapping("/workflow/{id}")
+    public ApiResponse<Void> update(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User user) {
+        agentService.update(id, user.getId(),
+                body.get("name"), body.get("description"));
+        return ApiResponse.success(null);
+    }
+
     /** 删除工作流 */
     @DeleteMapping("/workflow/{id}")
     public ApiResponse<Void> delete(
@@ -72,5 +83,13 @@ public class AgentController {
             @PathVariable Long id,
             @AuthenticationPrincipal User user) {
         return agentService.execute(id, user.getId());
+    }
+
+    /** 查询任务结果（前端轮询/刷新用） */
+    @GetMapping("/tasks/{id}")
+    public ApiResponse<AgentWorkflow> getTask(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user) {
+        return ApiResponse.success(agentService.getById(id, user.getId()));
     }
 }

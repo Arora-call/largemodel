@@ -26,11 +26,11 @@ spring:
           uri: http://localhost:8081
           predicates:
             - Path=/api/auth/**,/api/user/**
-        # Code Service (:8082) — AI + 项目 + 应用 + 对话 + 统计
+        # Code Service (:8082) — AI + 项目 + 应用 + 对话 + 统计 + 统一工作台
         - id: code-service
           uri: http://localhost:8082
           predicates:
-            - Path=/api/ai/**,/api/projects/**,/api/applications/**,/api/conversations/**,/api/dashboard/**
+            - Path=/api/ai/**,/api/projects/**,/api/applications/**,/api/conversations/**,/api/dashboard/**,/api/codegen/**
         # Knowledge Service (:8083) — 知识库
         - id: knowledge-service
           uri: http://localhost:8083

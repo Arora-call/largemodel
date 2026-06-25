@@ -1,6 +1,6 @@
 # CodeForge（代码锻造）— 大模型代码应用生成平台
 
-> 作者：yx | 更新时间：2026-06-23（Nacos 注册配置中心接入）
+> 作者：yx | 更新时间：2026-06-25（Vue 项目 npm 构建 + Nginx dist 部署）
 
 ---
 
@@ -15,10 +15,11 @@
 - [七、前端架构](#七前端架构)
 - [八、数据库设计](#八数据库设计)
 - [九、AI 集成](#九ai-集成)
-- [十、部署运行](#十部署运行)
-- [十一、设计规范](#十一设计规范)
-- [十二、文件索引](#十二文件索引)
-- [十三、后续规划](#十三后续规划)
+- [十、Nginx 部署预览](#十nginx-部署预览)
+- [十一、部署运行](#十一部署运行)
+- [十二、设计规范](#十二设计规范)
+- [十三、文件索引](#十三文件索引)
+- [十四、后续规划](#十四后续规划)
 
 ---
 
@@ -41,6 +42,50 @@
 - **AI 驱动**：LangChain4j + 多模型动态切换，SSE 流式输出
 - **安全防护**：AES-256-GCM 加密存储 API Key，接口限流防滥用
 - **容器化部署**：Docker Compose 一键启动 10 个服务
+
+### 2026-06-25 更新（第四批）
+
+- 🏗️ **Vue 项目构建**：新增 `VueProjectBuilder`，AI 生成源码后自动执行 `npm install` + `npm run build`，产出 `dist/` 目录
+- 🚀 **Nginx dist 部署**：Vue 项目部署时使用构建后的 `dist/` 产物，CSS/JS/路由完整可用，替代不稳定的 Sandpack 沙箱
+- 🔄 **双预览策略**：Vue 生成完 → Sandpack 即时预览 → 后台构建 → Nginx 就绪后自动切换 iframe
+- ⏱️ **异步构建**：Java 21 虚拟线程异步执行，不阻塞 SSE 响应。部署时 `waitForDist()` 最多等 120s
+- 🖥️ **OS 适配**：`VueProjectBuilder` 自动检测 Windows/Linux，Windows 下 npm 命令加 `.cmd` 后缀
+
+### 2026-06-25 更新（第三批）
+
+- 📚 **知识库上线**：文档上传（PDF/TXT/Markdown）、PDFBox 解析、内容分块、全文搜索、语义搜索、集合管理、下载
+- 🤖 **Agent 工作流上线**：5 Agent 链式编排（analyzer → architect → coder → tester → reviewer），SSE 流式执行，实时进度可视化
+- 📝 **Agent 提示词外部化**：5 个角色提示词移至 `prompt/agent-*.txt`，修改无需重新编译
+- 🔧 **Agent 执行优化**：`CountDownLatch` 替代忙等轮询，每 Agent 3 分钟超时保护
+- 📥 **结果导出**：Agent 执行结果支持一键导出 Markdown 文件
+- 📐 **页面居中**：知识库、Agent 工作流、监控大盘统一居中布局（`max-width` + `margin: auto`）
+- 🧹 **代码清理**：移除 `DeployService` / `ApplicationService` / `KnowledgeService` 中未用方法和常量
+
+### 2026-06-25 更新（第二批）
+
+- 🏷️ **应用保存重构**：保存应用不再存储 `sourceCode`，改为保存对话链接（`conversation_id`），解决代码过长被截断问题
+- 🎴 **卡片部署**：每个应用卡片新增 🚀 部署按钮，部署成功后在卡片内联显示 Nginx URL（可复制/打开）
+- 🔗 **点击跳转**：点击应用卡片 → 跳转 AI 工作台 `?appId=xxx`，自动加载关联对话 + 完整文件树 + 预览
+- 🔍 **类型筛选**：我的应用筛选从语言（Vue/Java/HTML...）改为生成类型（单文件/多文件/Vue3项目）
+- 🖼️ **封面图**：自动使用 `picsum.photos` 生成封面图片
+- ✏️ **PUT 更新端点**：新增 `PUT /api/applications/{id}` 支持更名/描述/封面修改
+- 📂 **侧栏默认收起**：侧边栏默认折叠，释放工作空间
+- 🧹 **顶栏简化**：移除伪搜索框，保留用户下拉菜单
+- 📝 **详情简化**：应用详情弹窗移除文件树/代码查看，改为「打开编辑」跳转 Workspace
+- ⚡ **代码简化**：`DeployService` 合并重复方法，`ApplicationService` 删除 `buildConfig()` 等废弃逻辑
+- 🔧 **下载优化**：下载优先从 `project_files` 打包独立文件 ZIP
+
+### 2026-06-25 更新（第一批）
+
+- 🏗️ **AI 工作台重构**：合并 Generate.vue + Create.vue → `CodeGenWorkspace.vue`，统一三栏布局（对话列表 + 聊天 + 预览）
+- 🎯 **三种生成模式**：单文件 (SINGLE_FILE) / 多文件 (MULTI_FILE) / Vue3 项目 (VUE_PROJECT)，采用 Executor + Strategy + Template Method 设计模式
+- 📋 **JSON 结构化输出**：Prompt 引导 AI 输出 JSON 格式，`CodeGenJsonParser` 括号深度追踪提取，正则兜底兼容
+- 🗂️ **项目文件表**：新增 `project_files` 表追踪每个对话的文件（路径 + 内容 + 大小），DB + 磁盘双写存储
+- 🚀 **Nginx 部署预览**：deployKey 6 位唯一标识，`DeployService` 将文件复制到 Nginx 目录，iframe 加载真实 URL
+- 📝 **Prompt 外部化**：System Prompt 移至 `resources/prompt/*.txt` 资源文件，修改无需重新编译
+- 🔧 **焦点收窄**：移除 Python/Java 后端代码生成，专注前端代码（HTML/CSS/JS/Vue）
+- 🔄 **SSE JSON 包裹**：后端 SSE 数据统一 `{"d":"..."}` 格式，前端 `unwrapJsonD()` 解包
+- 🛠️ **部署 API**：`POST /api/codegen/deploy` + `POST /api/codegen/deploy-by-app`，支持对话和应用双入口
 
 ### 2026-06-23 更新
 
@@ -103,10 +148,12 @@
 
 ```
                     ┌──────────────────────────┐
-                    │   Vite Dev Server :3000   │
-                    │   前端 SPA                 │
+                    │   Nginx :80 (生产)        │
+                    │   前端 SPA + 部署应用      │
+                    │   Vite :5173 (开发)        │
                     └──────────┬───────────────┘
                                │ proxy /api → :8080
+                               │ /<deployKey>/ → 静态文件
                     ┌──────────▼───────────────┐
                     │   Gateway (:8080)         │
                     │   Spring Cloud Gateway    │
@@ -118,7 +165,7 @@
   ┌──▼───┐ ┌───▼────┐  ┌─────▼──────┐ ┌────▼───┐ ┌───▼───┐
   │Auth   │ │Code    │  │Knowledge   │ │Agent   │ │Admin  │
   │:8081  │ │:8082   │  │:8083       │ │:8084   │ │:8085  │
-  │认证   │ │AI+项目 │  │文档+检索    │ │工作流  │ │管理   │
+  │认证   │ │AI+部署 │  │文档+检索    │ │工作流  │ │管理   │
   └──┬───┘ └───┬────┘  └─────┬──────┘ └───┬────┘ └───┬───┘
      │         │              │             │          │
      └─────────┴──────────────┴─────────────┴──────────┘
@@ -131,6 +178,10 @@
                     │   MySQL :3306         │
                     │   Redis :6379         │
                     └──────────────────────┘
+                    ┌──────────▼───────────┐
+                    │ tmp/code_deploy/      │
+                    │   磁盘部署文件 (Nginx) │
+                    └──────────────────────┘
 ```
 
 ---
@@ -140,15 +191,16 @@
 | 模块 | 状态 | 功能点 |
 |------|------|--------|
 | **用户体系** | ✅ | 注册/登录、JWT 认证、角色权限、找回密码、头像上传、账号切换 |
-| **AI 代码生成** | ✅ | SSE 流式输出、多轮对话、代码块解析、中断续写、手动保存 |
+| **AI 工作台** | ✅ | 统一三栏布局、三种生成模式（单文件/多文件/Vue3）、流式输出、文件树、Nginx 部署预览 |
 | **API Key 管理** | ✅ | AES-256 加密存储、多模型动态切换、在线测试连接 |
-| **工程项目** | ✅ | 多文件生成、文件树、CDN 沙箱预览、ZIP 下载、面板拖拽 |
+| **工程项目** | ✅ | 多文件生成、文件树、Sandpack 即时预览、npm 构建 Vue 项目、dist/ Nginx 部署、ZIP 下载 |
 | **AI 代码审查** | ✅ | SSE 流式审查、4 维度评分（安全/性能/规范/最佳实践） |
-| **对话导出** | ✅ | 一键导出 Markdown、单对话删除 |
+| **对话导出** | ✅ | 一键导出 Markdown、单对话删除、级联清理 |
 | **接口限流** | ✅ | AI 5 QPS、登录 20 QPS，超限返回 429 |
-| **应用管理** | ✅ | CRUD、重命名、分页搜索、语言筛选、封面图、下载 |
-| **知识库** |  | 文档上传、全文搜索、集合管理、向量化预留 |
-| **Agent 工作流** |  | 5 Agent 链式编排、SSE 分阶段执行、任务追踪 |
+| **应用管理** | ✅ | CRUD、重命名、类型筛选、封面图、下载、卡片部署、点击跳转Workspace |
+| **Nginx 部署** | ✅ | deployKey 机制、共享卷、SSE 直通、SPA 路由、Gzip 压缩 |
+| **知识库** | ✅ | 文档上传（PDF/TXT/MD）、全文搜索、语义搜索、集合管理、下载 |
+| **Agent 工作流** | ✅ | 5 Agent 链式编排（analyzer→architect→coder→tester→reviewer）、SSE 实时进度、Markdown 导出 |
 | **仪表盘** | ✅ | 项目数 + 对话数 + 角色 + 用户数（管理员） |
 | **管理后台** | ✅ | 用户管理、模型配置（含测试连接）、系统日志 |
 | **对话管理** | ✅ | MySQL 持久化、类型隔离 (NATIVE/ENGINEERING) |
@@ -187,7 +239,7 @@ largemodel_rearend/
 | 前缀 | → 服务 | 端口 |
 |------|--------|------|
 | `/api/auth/**`, `/api/user/**` | auth-service | 8081 |
-| `/api/ai/**`, `/api/projects/**`, `/api/applications/**`, `/api/conversations/**`, `/api/dashboard/**` | code-service | 8082 |
+| `/api/ai/**`, `/api/projects/**`, `/api/applications/**`, `/api/conversations/**`, `/api/dashboard/**`, `/api/codegen/**` | code-service | 8082 |
 | `/api/knowledge/**` | knowledge-service | 8083 |
 | `/api/agents/**` | agent-service | 8084 |
 | `/api/admin/**` | admin-service | 8085 |
@@ -233,7 +285,16 @@ largemodel_rearend/
 | POST | /api/ai/modify/stream | SSE 流式代码修改 |
 | POST | /api/ai/review | SSE 流式代码审查 |
 
-### 6.4 项目 `/api/projects/*`（需登录）
+### 6.4 统一工作台 `/api/codegen/*`（需登录，新架构）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/codegen/stream | 统一 SSE 流式生成（mode: SINGLE_FILE/MULTI_FILE/VUE_PROJECT） |
+| POST | /api/codegen/modify/stream | SSE 流式代码修改 |
+| POST | /api/codegen/deploy | 部署对话文件到 Nginx（`{conversationId}` → `{deployKey, url}`） |
+| POST | /api/codegen/deploy-by-app | 部署应用到 Nginx（`{appId}` → `{deployKey, url}`） |
+
+### 6.5 项目 `/api/projects/*`（需登录）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -247,32 +308,38 @@ largemodel_rearend/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | /api/applications | 保存/更新（传 id 则更新） |
-| GET | /api/applications | 分页 + 关键词 + 语言筛选 |
-| GET | /api/applications/{id} | 详情 |
+| POST | /api/applications | 保存应用（仅元信息 + conversationId，不存代码） |
+| PUT | /api/applications/{id} | 更新名称/描述/封面 |
+| GET | /api/applications | 分页 + 关键词 + 类型筛选（SINGLE_FILE/MULTI_FILE/VUE_PROJECT） |
+| GET | /api/applications/{id} | 详情（含 conversationId / deployKey） |
 | DELETE | /api/applications/{id} | 删除 |
-| GET | /api/applications/{id}/download | 下载代码 (blob + JWT) |
+| GET | /api/applications/{id}/download | 下载 ZIP（优先 project_files 打包） |
 
 ### 6.6 知识库 `/api/knowledge/*`（需登录）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | /api/knowledge/documents | 上传文档 |
-| GET | /api/knowledge/documents | 文档列表 |
+| POST | /api/knowledge/documents | 上传文档（PDF/TXT/MD，最大 10MB） |
+| GET | /api/knowledge/documents | 文档列表（分页 + 集合筛选） |
 | GET | /api/knowledge/documents/{id} | 详情 |
-| DELETE | /api/knowledge/documents/{id} | 删除 |
-| POST | /api/knowledge/search | 语义搜索 |
-| GET | /api/knowledge/stats | 统计 |
+| GET | /api/knowledge/documents/{id}/download | 下载原文件 |
+| DELETE | /api/knowledge/documents/{id} | 删除（软删除） |
+| POST | /api/knowledge/search | 语义搜索（多关键词交集 + 全文回退） |
+| GET | /api/knowledge/stats | 统计（文档数 + 集合数） |
+| GET | /api/knowledge/collections | 集合列表 |
+| DELETE | /api/knowledge/collections/{name} | 删除集合 |
 
 ### 6.7 Agent `/api/agents/*`（需登录）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | /api/agents/workflow | 创建工作流 |
-| GET | /api/agents/workflow | 列表 |
-| GET | /api/agents/workflow/{id} | 详情 |
+| PUT | /api/agents/workflow/{id} | 更新名称/描述 |
+| GET | /api/agents/workflow | 工作流列表（分页） |
+| GET | /api/agents/workflow/{id} | 详情（含执行结果） |
 | DELETE | /api/agents/workflow/{id} | 删除 |
-| POST | /api/agents/workflow/{id}/execute | SSE 流式执行 5 Agent 链 |
+| POST | /api/agents/workflow/{id}/execute | SSE 流式执行（5 Agent 阶段式输出） |
+| GET | /api/agents/tasks/{id} | 查询任务结果 |
 
 ### 6.8 管理 `/api/admin/*`（需 ADMIN）
 
@@ -330,12 +397,13 @@ largemodel_frontend/
 │   │   ├── AuthLayout.vue             # 登录/注册布局
 │   │   └── DefaultLayout.vue          # 主布局 (侧边栏+顶栏)
 │   ├── views/
-│   │   ├── ai/Generate.vue            # AI 代码生成（含模型选择器）
-│   │   ├── project/Create.vue         # 项目创建
-│   │   ├── app/AppList.vue            # 我的应用（含重命名）
+│   │   ├── ai/CodeGenWorkspace.vue    # AI 工作台（统一三栏布局，三种模式）
+│   │   ├── ai/Generate.vue            # AI 代码生成（旧，含模型选择器）
+│   │   ├── project/Create.vue         # 项目创建（旧）
+│   │   ├── app/AppList.vue            # 我的应用（卡片跳转Workspace + 部署URL + 类型筛选 + 重命名）
 │   │   ├── dashboard/Index.vue        # 工作台
-│   │   ├── knowledge/Index.vue        # 知识库
-│   │   ├── agents/Index.vue           # Agent 工作流
+│   │   ├── knowledge/Index.vue        # 知识库（上传/搜索/下载/集合管理）
+│   │   ├── agents/Index.vue           # Agent 工作流（5 Agent 链 SSE 执行 + 结果导出）
 │   │   ├── monitor/Index.vue          # 监控大盘
 │   │   ├── admin/Users.vue            # 用户管理
 │   │   ├── admin/Models.vue           # 模型配置（完整 CRUD）
@@ -352,8 +420,9 @@ largemodel_frontend/
 | `/auth/login` | 登录 | guest |
 | `/auth/register` | 注册 | guest |
 | `/dashboard` | 工作台 | auth |
-| `/ai/generate` | AI 代码生成 | auth |
-| `/project/create` | 创建项目 | auth |
+| `/workspace` | AI 工作台（新） | auth |
+| `/ai/generate` | AI 代码生成（旧） | auth |
+| `/project/create` | 创建项目（旧） | auth |
 | `/app/list` | 我的应用 | auth |
 | `/knowledge` | 知识库 | auth |
 | `/agents` | Agent 工作流 | auth |
@@ -372,9 +441,10 @@ largemodel_frontend/
 | 表名 | 说明 |
 |------|------|
 | `users` | 用户 (BCrypt 密码 / 角色 / 状态 / 逻辑删除) |
-| `applications` | 应用 (类型 / 语言 / 源码 / 配置 JSON) |
-| `conversations` | 对话会话 (type: NATIVE/ENGINEERING) |
+| `applications` | 应用 (类型 / 语言 / deployKey / 部署时间 / 优先级) |
+| `conversations` | 对话会话 (type: SINGLE_FILE/MULTI_FILE/VUE_PROJECT) |
 | `messages` | 消息 (USER/AI 角色 / 内容 / token 数) |
+| `project_files` | 项目文件 (对话ID / 路径 / 内容 / 大小) — DB + 磁盘双写 |
 | `knowledge_documents` | 知识库文档 (全文索引 / 向量状态) |
 | `agent_workflows` | Agent 工作流 (Agent 链 / 状态 / 结果) |
 | `model_configs` | AI 模型配置 (AES-256 加密 API Key) |
@@ -407,21 +477,131 @@ DynamicModelProvider.getStreaming(modelId)
 
 支持的模型：DeepSeek / OpenAI / 智谱 GLM / 任何 OpenAI 兼容 API
 
-### 9.2 AI 功能
+### 9.2 代码生成架构（新）
 
-| 功能 | 端点 | Prompt 模板 |
-|------|------|------------|
-| 单文件生成 | `/api/ai/generate/stream` (NATIVE) | 语言专用 System Prompt |
-| 项目生成 | `/api/projects/generate` (ENGINEERING) | 多文件标记格式 |
-| 代码修改 | `/api/ai/modify/stream` | 元素拾取 + 上下文 |
+采用 **Executor + Strategy + Template Method** 设计模式：
+
+```
+POST /api/codegen/stream { type, prompt, conversationId, modelId }
+         │
+    CodeGenerationExecutor.resolveMode(type)
+         │
+    ┌────┴────┬────────────┐
+    │         │            │
+SINGLE_FILE  MULTI_FILE  VUE_PROJECT
+    │         │            │
+    └────┬────┴────────────┘
+         │
+  AbstractCodeGenerationStrategy.doStream()
+         │
+    ┌────┴────┐
+    │  Token  │ → SSE event: token {"d":"..."}
+    │  Done   │ → SSE event: done  {"d":"{...json...}"}
+    └─────────┘
+         │
+  parseResponse() → JSON 优先（CodeGenJsonParser）+ 正则兜底
+         │
+  persistFiles() → DB (project_files) + 磁盘 (tmp/code_output/)
+```
+
+### 9.3 Prompt 模板（外部化）
+
+| 模式 | 资源文件 | 输出格式 |
+|------|---------|---------|
+| SINGLE_FILE | `prompt/single-file-system-prompt.txt` | `{"htmlCode":"...", "description":"..."}` |
+| MULTI_FILE | `prompt/multi-file-system-prompt.txt` | `{"htmlCode":"...", "cssCode":"...", "jsCode":"...", "description":"..."}` |
+| VUE_PROJECT | `prompt/vue-project-system-prompt.txt` | `{"files":[{"path":"...","content":"..."}], "description":"...", "projectName":"..."}` |
+
+### 9.4 AI 功能总览
+
+| 功能 | 端点 | 模式 |
+|------|------|------|
+| AI 工作台（新） | `/api/codegen/stream` | SINGLE_FILE / MULTI_FILE / VUE_PROJECT |
+| 单文件生成（旧） | `/api/ai/generate/stream` | NATIVE |
+| 项目生成（旧） | `/api/projects/generate` | ENGINEERING |
+| 代码修改 | `/api/codegen/modify/stream` | — |
 | 代码审查 | `/api/ai/review` | 4 维度评分报告 |
 | Agent 执行 | `/api/agents/workflow/{id}/execute` | 5 角色链式编排 |
 
 ---
 
-## 十、部署运行
+## 十、Nginx 部署预览
 
-### 10.1 本地开发
+### 10.1 工作流程
+
+```
+AI 生成代码 → project_files 表 + 磁盘
+         │
+  点击「🚀 部署预览」
+         │
+  DeployService.deployConversation(conversationId)
+         │
+  ┌──────┴──────┐
+  │  生成 6 位   │  deployKey (例: aB3xK9)
+  │  唯一标识    │
+  └──────┬──────┘
+         │
+  复制文件到 tmp/code_deploy/<deployKey>/
+         │
+  返回 URL: http://localhost/<deployKey>/
+         │
+  iframe src 切换 → Nginx 提供静态文件服务
+         │
+  index.html 中 <link href="style.css"> 正常加载 ✅
+```
+
+### 10.2 存储路径
+
+| 目录 | 用途 |
+|------|------|
+| `tmp/code_output/<type>_<id>/` | AI 生成原始文件（开发/预览） |
+| `tmp/code_deploy/<deployKey>/` | Nginx 部署文件（生产访问） |
+| `project_files` 表 | 数据库文件追踪（conversation_id + file_path + content + file_size） |
+
+### 10.3 Nginx 配置要点
+
+```nginx
+# 部署应用访问 — 6 位 deployKey，支持 SPA
+location ~ "^/([a-zA-Z0-9]{6})(.*)$" {
+    root /path/to/tmp/code_deploy;
+    try_files /$1$2 /$1/index.html =404;
+}
+
+# SSE 流式生成 — 禁用缓冲
+location /api/codegen/ {
+    proxy_pass http://gateway:8080;
+    proxy_buffering off;
+    proxy_read_timeout 600s;
+}
+```
+
+### 10.4 本地开发 Nginx
+
+```powershell
+# Windows — 使用项目提供的 nginx-local.conf
+.\nginx -c D:\Idea-program-file\largemodel\nginx-local.conf
+```
+
+配置文件：`nginx-local.conf`（项目根目录），监听 :80，代理 API 到 :8080，部署文件从 `tmp/code_deploy/` 提供。
+
+### 10.5 Docker 部署
+
+`docker-compose.yml` 中 `code-service` 和 `frontend` 通过 `deploy_data` 共享卷互通：
+
+```yaml
+code-service:
+  volumes:
+    - deploy_data:/app/tmp/code_deploy
+frontend:
+  volumes:
+    - deploy_data:/var/www/deployed
+```
+
+---
+
+## 十一、部署运行
+
+### 11.1 本地开发
 
 ```bash
 # 前置：MySQL 8 + Redis 7 + Nacos 3.1.2 已启动
@@ -449,7 +629,7 @@ npm install && npm run dev
 # → http://localhost:3000
 ```
 
-### 10.2 Docker 部署
+### 11.2 Docker 部署
 
 ```bash
 cd D:\Idea-program-file\largemodel
@@ -460,7 +640,7 @@ docker compose up -d --build
 
 > 详细部署步骤（Ubuntu/VMware 环境、分步构建、故障排查等）见 **[Deployment.md](Deployment.md)**。
 
-### 10.3 测试
+### 11.3 测试
 
 ```bash
 cd largemodel_rearend
@@ -478,16 +658,16 @@ mvn test -pl codeforge-auth -am
 
 ---
 
-## 十一、设计规范
+## 十二、设计规范
 
-### 11.1 品牌
+### 12.1 品牌
 
 | 项目 | 值 |
 |------|-----|
 | 名称 | **CodeForge**（代码锻造） |
 | 风格 | 深色科技风（Dark Tech） |
 
-### 11.2 Design Tokens
+### 12.2 Design Tokens
 
 ```css
 --accent: #7c8aff;           /* 靛蓝紫品牌色 */
@@ -501,24 +681,25 @@ mvn test -pl codeforge-auth -am
 
 ---
 
-## 十二、文件索引
+## 十三、文件索引
 
-### 12.1 快速导航
+### 13.1 快速导航
 
 | 功能域 | 前端入口 | 后端模块 | 数据表 |
 |--------|---------|---------|--------|
 | 用户认证 | `Login.vue` | auth :8081 | `users` |
 | 个人信息 | `Profile.vue` | auth :8081 | `users` |
 | 后台管理 | `Users.vue` `Models.vue` | admin :8085 | `users` `model_configs` |
-| AI 代码生成 | `Generate.vue` | code :8082 | `conversations` `messages` |
+| AI 工作台（新） | `CodeGenWorkspace.vue` | code :8082 | `conversations` `messages` `project_files` |
+| AI 代码生成（旧） | `Generate.vue` | code :8082 | `conversations` `messages` |
 | AI 代码审查 | `Generate.vue` | code :8082 | — |
-| 工程项目 | `Create.vue` | code :8082 | `conversations` + 磁盘 |
-| 应用管理 | `AppList.vue` | code :8082 | `applications` |
+| 工程项目（旧） | `Create.vue` | code :8082 | `conversations` + 磁盘 |
+| 应用管理 | `AppList.vue` | code :8082 | `applications` + `project_files` |
 | 知识库 | `knowledge/Index.vue` | knowledge :8083 | `knowledge_documents` |
 | Agent 工作流 | `agents/Index.vue` | agent :8084 | `agent_workflows` |
 | 监控 | `monitor/Index.vue` | — | — |
 
-### 12.2 后端关键文件
+### 13.2 后端关键文件
 
 | 文件 | 位置 | 职责 |
 |------|------|------|
@@ -528,11 +709,20 @@ mvn test -pl codeforge-auth -am
 | `DynamicModelProvider.java` | common | 动态模型工厂 (DB/fallback) |
 | `RateLimitFilter.java` | gateway | 滑动窗口限流 |
 | `AesUtil.java` | common | AES-256-GCM 加密 |
-| `PromptTemplateService.java` | code | 5 套 System Prompt |
-| `AiCodeGenService.java` | code | SSE 流式核心 |
+| `PromptTemplateService.java` | code | 外部化 Prompt 加载（resources/prompt/*.txt） |
+| `CodeGenerationExecutor.java` | code | 执行器 — mode 路由到策略 |
+| `AbstractCodeGenerationStrategy.java` | code | 模板方法 — SSE 流式引擎 + JSON 包裹 |
+| `SingleFileStrategy.java` | code | 单文件模式（JSON + 正则） |
+| `MultiFileStrategy.java` | code | 多文件模式（JSON + 正则） |
+| `VueProjectStrategy.java` | code | Vue3 项目模式（JSON + [FILE] 标记） |
+| `CodeGenJsonParser.java` | code | JSON 括号深度追踪提取 |
+| `VueProjectBuilder.java` | code | Vue 项目构建器 — npm install + build + dist/ 产出 |
+| `DeployService.java` | code | 部署服务 — deployKey 生成 + dist 复制 + 磁盘清理 |
+| `prompt/agent-*.txt` | agent | Agent 角色提示词（analyzer/architect/coder/tester/reviewer） |
+| `AiCodeGenService.java` | code | SSE 流式核心（旧，兼容保留） |
 | `application.yml` | 各服务模块 | 业务配置 + Nacos 注册/配置地址 |
 
-### 12.3 Docker 关键文件
+### 13.3 Docker / 部署关键文件
 
 | 文件 | 位置 | 职责 |
 |------|------|------|
@@ -543,18 +733,23 @@ mvn test -pl codeforge-auth -am
 | `Dockerfile` | `largemodel_frontend/` | 多阶段构建（Node:22-alpine 编译 → Nginx:1.25-alpine 运行） |
 | `nginx.conf` | `largemodel_frontend/` | SPA 路由 + `/api/` 反代 Gateway + SSE 直通（`proxy_buffering off`） |
 | `application-docker.yml` | `codeforge-gateway/src/main/resources/` | Gateway Docker profile — 路由 URI 使用 Compose 服务名（`http://auth-service:8081` 等） |
+| `nginx-local.conf` | 项目根目录 | Windows 本地 Nginx 配置（API 代理 + 部署文件服务） |
+| `init.sql` | `codeforge-code/src/main/resources/db/` | 数据库初始化脚本（10 表，v2.3） |
 
 > 部署步骤详见 **[Deployment.md](Deployment.md)**。
 
 ---
 
-## 十三、后续规划
+## 十四、后续规划
 
 ### 🔴 P0 — 高优先级
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| 微服务真正拆分 | ✅ | Auth/Admin 独立，Gateway 5 路由 |
+| 微服务真正拆分 | ✅ | Auth/Admin 独立，Gateway 7 路由 |
+| **AI 工作台重构** | ✅ | Executor + Strategy + Template Method，三种生成模式 |
+| **Nginx 部署预览** | ✅ | deployKey 机制、共享卷、SSE 直通 |
+| **Prompt 外部化** | ✅ | 资源文件加载，JSON 结构化输出 |
 | Sentinel 流控 | ✅ | Gateway 全局过滤器 |
 | API Key 管理 | ✅ | AES-256 加密 + 动态切换 + 测试连接 |
 | 对话导出 | ✅ | 导出 Markdown + 单对话删除 |
@@ -565,6 +760,9 @@ mvn test -pl codeforge-auth -am
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | 多模型支持 | ✅ | DeepSeek/GLM/Qwen/GPT 切换 |
+| **应用 Nginx 部署** | ✅ | 卡片一键部署 + 内联 URL + iframe 预览 |
+| **知识库** | ✅ | 文档上传/搜索/集合管理/PDF解析 |
+| **Agent 工作流** | ✅ | 5 Agent 链式编排/SSE 执行/Markdown 导出 |
 | RAG 向量检索 | ⬜ | 接入 Milvus/Chroma |
 | 代码审查自动化 | ⬜ | 保存审查历史 + 报告导出 |
 | 单元测试生成 | ⬜ | AI 自动生成 JUnit/Vitest |

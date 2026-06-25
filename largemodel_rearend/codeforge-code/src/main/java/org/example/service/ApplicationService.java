@@ -8,11 +8,14 @@
  */
 package org.example.service;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.entity.Application;
+import org.example.entity.Conversation;
+import org.example.entity.ProjectFile;
 import org.example.exception.BusinessException;
+import org.example.mapper.ProjectFileMapper;
 import org.example.repository.ApplicationRepository;
-import org.example.util.LanguageUtil;
+import org.example.repository.ConversationRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,18 +33,25 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class ApplicationService {
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
-            new com.fasterxml.jackson.databind.ObjectMapper();
     private final ApplicationRepository appRepo;
+    private final ConversationRepository conversationRepo;
+    private final ProjectFileMapper projectFileMapper;
 
-    /** 保存或更新应用 */
+    public ApplicationService(ApplicationRepository appRepo, ConversationRepository conversationRepo,
+                              ProjectFileMapper projectFileMapper) {
+        this.appRepo = appRepo;
+        this.conversationRepo = conversationRepo;
+        this.projectFileMapper = projectFileMapper;
+    }
+
+    /** 保存或更新应用 — 只保存元信息，代码通过对话链接获取 */
     @Transactional
     public Application saveOrUpdate(Long id, String name, String description, String type,
-                                     String language, Long userId, String sourceCode, String configJson) {
+                                     String language, Long userId, Long conversationId) {
         Application app;
         if (id != null) {
             app = findOwnApp(id, userId);
@@ -57,50 +67,59 @@ public class ApplicationService {
         if (StringUtils.hasText(description)) app.setDescription(description);
         if (StringUtils.hasText(type)) app.setType(type);
         if (StringUtils.hasText(language)) app.setLanguage(language);
-        if (sourceCode != null) app.setSourceCode(sourceCode);
-        if (configJson != null && !configJson.isBlank()) {
-            app.setConfigJson(configJson);
-        } else if (sourceCode != null && (app.getConfigJson() == null || app.getConfigJson().isBlank())) {
-            app.setConfigJson(buildConfig(sourceCode, language));
-        }
         if (app.getCoverImage() == null) {
-            app.setCoverImage(LanguageUtil.toCoverGradient(language));
+            app.setCoverImage("https://picsum.photos/seed/" + app.hashCode() + "/400/300");
         }
         app.setUpdatedAt(LocalDateTime.now());
+        app = appRepo.save(app);
 
-        return appRepo.save(app);
+        // 关联对话 → 应用
+        if (conversationId != null) {
+            linkConversation(app.getId(), conversationId);
+        }
+
+        return app;
     }
 
-
-    /** 解析代码中的依赖和结构 */
-    private String buildConfig(String code, String lang) {
-        try {
-            var config = new java.util.HashMap<String, Object>();
-            var deps = new java.util.ArrayList<String>();
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:import|require|from)\\s+['\"(]?([\\w./@-]+)").matcher(code);
-            while (m.find()) deps.add(m.group(1));
-            config.put("dependencies", deps.stream().distinct().limit(10).toList());
-
-            var files = new java.util.ArrayList<String>();
-            java.util.regex.Matcher fm = java.util.regex.Pattern.compile(">>>\\s*FILE:\\s*(\\S+)").matcher(code);
-            while (fm.find()) files.add(fm.group(1));
-            config.put("files", files);
-            config.put("language", lang);
-
-            return MAPPER.writeValueAsString(config);
-        } catch (Exception e) { return "{}"; }
+    /** 更新应用元信息（名称/描述/封面） */
+    @Transactional
+    public void updateMeta(Long id, Long userId, String name, String description, String coverImage) {
+        Application app = findOwnApp(id, userId);
+        if (StringUtils.hasText(name)) app.setName(name);
+        if (description != null) app.setDescription(description);
+        if (StringUtils.hasText(coverImage)) app.setCoverImage(coverImage);
+        app.setUpdatedAt(LocalDateTime.now());
+        appRepo.save(app);
     }
+
+    /** 查找应用关联的对话ID */
+    public Long findConversationIdByAppId(Long appId) {
+        List<Conversation> convs = conversationRepo.findByApplicationIdOrderByUpdatedAtDesc(appId);
+        return convs.isEmpty() ? null : convs.get(0).getId();
+    }
+
 
     /** 分页列表 */
-    public Page<Application> listByUser(Long userId, int page, int size, String keyword, String language) {
+    public Page<Application> listByUser(Long userId, int page, int size, String keyword, String language, String type) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
-        if (StringUtils.hasText(keyword) && StringUtils.hasText(language)) {
+
+        // 组合筛选
+        boolean hasKeyword = StringUtils.hasText(keyword);
+        boolean hasLanguage = StringUtils.hasText(language);
+        boolean hasType = StringUtils.hasText(type);
+
+        if (hasKeyword && hasLanguage) {
             return appRepo.findByUserIdAndNameContainingAndLanguageAndStatusNot(
                     userId, keyword, language, 0, pageable);
-        } else if (StringUtils.hasText(keyword)) {
+        } else if (hasKeyword && hasType) {
+            return appRepo.findByUserIdAndNameContainingAndTypeAndStatusNot(
+                    userId, keyword, type, 0, pageable);
+        } else if (hasKeyword) {
             return appRepo.findByUserIdAndNameContainingAndStatusNot(userId, keyword, 0, pageable);
-        } else if (StringUtils.hasText(language)) {
+        } else if (hasLanguage) {
             return appRepo.findByUserIdAndLanguageAndStatusNot(userId, language, 0, pageable);
+        } else if (hasType) {
+            return appRepo.findByUserIdAndTypeAndStatusNot(userId, type, 0, pageable);
         }
         return appRepo.findByUserIdAndStatusNotOrderByUpdatedAtDesc(userId, 0, pageable);
     }
@@ -119,55 +138,43 @@ public class ApplicationService {
         appRepo.save(app);
     }
 
-    /** 生成下载内容 */
-    public byte[] downloadCode(Long id, Long userId) {
-        Application app = findOwnApp(id, userId);
-        String code = app.getSourceCode();
-        if (code == null || code.isBlank()) {
-            throw new BusinessException("应用无源代码可下载");
+    /** 关联对话到应用 */
+    @Transactional
+    public void linkConversation(Long appId, Long conversationId) {
+        Conversation conv = conversationRepo.findById(conversationId).orElse(null);
+        if (conv != null && !appId.equals(conv.getApplicationId())) {
+            conv.setApplicationId(appId);
+            conversationRepo.save(conv);
+            log.info("对话关联到应用: conversationId={}, appId={}", conversationId, appId);
         }
-
-        String lang = app.getLanguage();
-        if ("native".equalsIgnoreCase(lang) || lang == null || "java".equalsIgnoreCase(lang)
-                || "python".equalsIgnoreCase(lang)) {
-            // 单文件直接返回
-            String fileName = (app.getName() != null ? app.getName() : "app") + LanguageUtil.toExt(lang);
-            return wrapSingleFile(fileName, code);
-        }
-        // 多文件用 ZIP
-        return wrapZip(app.getName(), code);
     }
 
-    private byte[] wrapSingleFile(String fileName, String code) {
-        return code.getBytes(StandardCharsets.UTF_8);
-    }
+    /** 从 project_files 打包 ZIP（多文件独立，非拼接） */
+    public byte[] zipFromProjectFiles(Long appId) {
+        List<Conversation> convs = conversationRepo.findByApplicationIdOrderByUpdatedAtDesc(appId);
+        for (Conversation conv : convs) {
+            List<ProjectFile> pfs = projectFileMapper.findByConversationId(conv.getId());
+            if (pfs.isEmpty()) continue;
 
-    private byte[] wrapZip(String appName, String code) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ZipOutputStream zos = new ZipOutputStream(bos)) {
-            String[] parts = code.split(">>>\\s*FILE:\\s*");
-            if (parts.length <= 1) {
-                ZipEntry entry = new ZipEntry("index.html");
-                zos.putNextEntry(entry);
-                zos.write(code.getBytes(StandardCharsets.UTF_8));
-                zos.closeEntry();
-            } else {
-                for (int i = 1; i < parts.length; i++) {
-                    String part = parts[i];
-                    int nl = part.indexOf('\n');
-                    String path = nl > 0 ? part.substring(0, nl).trim() : "file" + i;
-                    String content = nl > 0 ? part.substring(nl + 1) : part;
-                    ZipEntry entry = new ZipEntry(path);
+            try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                 ZipOutputStream zos = new ZipOutputStream(bos)) {
+
+                for (ProjectFile pf : pfs) {
+                    if (pf.getContent() == null || pf.getContent().isBlank()) continue;
+                    ZipEntry entry = new ZipEntry(pf.getFilePath());
                     zos.putNextEntry(entry);
-                    zos.write(content.getBytes(StandardCharsets.UTF_8));
+                    zos.write(pf.getContent().getBytes(StandardCharsets.UTF_8));
                     zos.closeEntry();
                 }
+                zos.finish();
+                log.info("ZIP从project_files打包: appId={}, 文件数={}", appId, pfs.size());
+                return bos.toByteArray();
+            } catch (IOException e) {
+                log.warn("project_files ZIP打包失败: appId={}", appId, e);
+                return null;
             }
-            zos.finish();
-            return bos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("打包失败: " + e.getMessage());
         }
+        return null;
     }
 
     private Application findOwnApp(Long id, Long userId) {

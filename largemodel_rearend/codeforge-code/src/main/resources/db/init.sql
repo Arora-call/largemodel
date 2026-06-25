@@ -1,7 +1,7 @@
 -- ============================================
 -- CodeForge（代码锻造）— 数据库初始化脚本
 -- 数据库: largemodel
--- 版本: v2.2 (微服务拆分 + 监控日志)
+-- 版本: v2.3（前端代码生成 + 部署支持）
 -- ============================================
 
 CREATE DATABASE IF NOT EXISTS `largemodel` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -38,22 +38,29 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- 2. 应用表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `applications` (
-    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `name`        VARCHAR(200) NOT NULL               COMMENT '应用名称',
-    `description` TEXT         DEFAULT NULL           COMMENT '应用描述',
-    `type`        VARCHAR(50)  NOT NULL DEFAULT 'NATIVE' COMMENT '类型: NATIVE/ENGINEERING',
-    `language`    VARCHAR(50)  DEFAULT NULL           COMMENT '编程语言: java/vue/python/html',
-    `user_id`     BIGINT       NOT NULL               COMMENT '创建者用户ID',
-    `status`      TINYINT      NOT NULL DEFAULT 1     COMMENT '状态: 0-删除, 1-草稿, 2-已生成',
-    `source_code` MEDIUMTEXT   DEFAULT NULL           COMMENT '源代码',
-    `config_json` JSON         DEFAULT NULL           COMMENT '配置信息(依赖/结构等)',
-    `cover_image` VARCHAR(500) DEFAULT NULL           COMMENT '封面图URL',
-    `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `name`          VARCHAR(200) NOT NULL               COMMENT '应用名称',
+    `description`   TEXT         DEFAULT NULL           COMMENT '应用描述',
+    `type`          VARCHAR(50)  NOT NULL DEFAULT 'SINGLE_FILE' COMMENT '代码生成类型: SINGLE_FILE/MULTI_FILE/VUE_PROJECT',
+    `language`      VARCHAR(50)  DEFAULT NULL           COMMENT '编程语言: html/vue/javascript',
+    `user_id`       BIGINT       NOT NULL               COMMENT '创建者用户ID',
+    `status`        TINYINT      NOT NULL DEFAULT 1     COMMENT '状态: 0-删除, 1-草稿, 2-已生成',
+    `gen_status`    VARCHAR(20)  DEFAULT 'completed'    COMMENT '生成状态: generating/completed/failed',
+    `init_prompt`   TEXT         DEFAULT NULL           COMMENT '创建时的初始 Prompt',
+    `source_code`   MEDIUMTEXT   DEFAULT NULL           COMMENT '源代码(已废弃，改用磁盘存储)',
+    `config_json`   JSON         DEFAULT NULL           COMMENT '配置信息(依赖/结构等)',
+    `cover_image`   VARCHAR(500) DEFAULT NULL           COMMENT '封面图URL',
+    `deploy_key`    VARCHAR(10)  DEFAULT NULL           COMMENT '部署标识(6位字母数字)',
+    `deployed_time` DATETIME     DEFAULT NULL           COMMENT '部署时间',
+    `priority`      INT          NOT NULL DEFAULT 0     COMMENT '优先级: 0-默认, 99-精选, 999-置顶',
+    `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_deploy_key` (`deploy_key`),
     KEY `idx_user_id` (`user_id`),
     KEY `idx_status` (`status`),
-    KEY `idx_language` (`language`)
+    KEY `idx_language` (`language`),
+    KEY `idx_priority` (`priority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='应用表';
 
 -- ============================================
@@ -62,7 +69,7 @@ CREATE TABLE IF NOT EXISTS `applications` (
 CREATE TABLE IF NOT EXISTS `conversations` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `application_id` BIGINT       DEFAULT NULL            COMMENT '关联应用ID',
-    `type`           VARCHAR(20)  NOT NULL DEFAULT 'NATIVE' COMMENT '对话类型: NATIVE(代码生成) / ENGINEERING(工程项目)',
+    `type`           VARCHAR(20)  NOT NULL DEFAULT 'SINGLE_FILE' COMMENT '对话类型: SINGLE_FILE/MULTI_FILE/VUE_PROJECT',
     `user_id`        BIGINT       NOT NULL                COMMENT '对话用户ID',
     `title`          VARCHAR(200) DEFAULT NULL            COMMENT '对话标题（自动取首条消息前30字）',
     `model`          VARCHAR(100) DEFAULT NULL            COMMENT '使用的模型',
@@ -195,11 +202,29 @@ CREATE TABLE IF NOT EXISTS `operation_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作日志';
 
 -- ============================================
+-- 10. 项目文件表（代码文件追踪）
+-- ============================================
+CREATE TABLE IF NOT EXISTS `project_files` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `conversation_id` BIGINT       NOT NULL                COMMENT '所属对话ID',
+    `file_path`       VARCHAR(500) NOT NULL                COMMENT '文件相对路径',
+    `content`         LONGTEXT     DEFAULT NULL            COMMENT '文件完整内容',
+    `file_size`       BIGINT       DEFAULT 0               COMMENT '文件大小(bytes)',
+    `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_conversation_id` (`conversation_id`),
+    KEY `idx_file_path` (`file_path`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='项目文件表';
+
+-- ============================================
 -- 说明
 --
 -- 管理员账号由 DataInitializer 启动时自动创建
 -- 默认账号: admin / admin123（BCrypt加密由Java生成）
 -- 管理员可在后台「模型配置」页面添加 API Key（AES-256 加密存储）
--- API 调用日志由 AiCodeGenService 自动记录，用于监控大盘统计
+-- API 调用日志由 AI 服务自动记录，用于监控大盘统计
 -- 操作日志通过 @LogRecord AOP 注解自动记录管理员操作
+-- 应用代码存储在 tmp/code_output/ 目录（磁盘），不再存入 source_code 字段
+-- 部署文件存储在 tmp/code_deploy/<deployKey>/ 目录，由 Nginx 提供服务
 -- ============================================

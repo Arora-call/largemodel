@@ -91,6 +91,14 @@ app:
     base-dir: uploads
     avatar-dir: uploads/avatars
 
+# Code generation config
+codegen:
+  deploy:
+    # 部署文件根目录 — Nginx 从此目录提供静态文件服务
+    # 本地开发：D:/Idea-program-file/largemodel/largemodel_rearend/tmp/code_deploy
+    # Docker：  /app/tmp/code_deploy（需与 frontend 容器共享卷）
+    root: ${user.dir}/tmp/code_deploy
+
 logging:
   level:
     org.example: DEBUG

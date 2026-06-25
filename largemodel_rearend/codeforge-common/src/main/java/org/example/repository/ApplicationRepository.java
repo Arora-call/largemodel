@@ -28,7 +28,13 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
 
     Page<Application> findByUserIdAndNameContainingAndLanguageAndStatusNot(Long userId, String keyword, String language, Integer status, Pageable pageable);
 
+    Page<Application> findByUserIdAndTypeAndStatusNot(Long userId, String type, Integer status, Pageable pageable);
+
+    Page<Application> findByUserIdAndNameContainingAndTypeAndStatusNot(Long userId, String keyword, String type, Integer status, Pageable pageable);
+
     List<Application> findByUserIdAndStatusNot(Long userId, Integer status);
 
     long countByUserIdAndStatusNot(Long userId, Integer status);
+
+    java.util.Optional<Application> findByDeployKey(String deployKey);
 }
