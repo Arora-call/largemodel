@@ -113,38 +113,39 @@ public class FileModificationService {
                             List<Map<String, String>> mergedFiles = mergeSnippetsWithOriginals(
                                     parsedFiles, request.getFiles());
 
-                            // 5. 持久化：更新 DB project_files + 磁盘
-                            if (!mergedFiles.isEmpty()) {
-                                if (request.getConversationId() != null) {
-                                    persistModifiedFiles(request.getConversationId(), mergedFiles, request.getType());
-                                } else {
-                                    log.warn("conversationId 为 null，仅写入磁盘");
-                                    String dirName = (request.getType() != null ? request.getType().toLowerCase() : "single_file") + "_temp";
-                                    deployService.writeFilesToDisk(null, null, dirName, mergedFiles);
-                                }
+                            // 5. 持久化（合并新旧文件，保留未修改的）
+                            List<Map<String, String>> allFiles;
+                            if (!mergedFiles.isEmpty() && request.getConversationId() != null) {
+                                allFiles = persistModifiedFiles(request.getConversationId(), mergedFiles, request.getType());
+                            } else if (!mergedFiles.isEmpty()) {
+                                log.warn("conversationId 为 null，仅写入磁盘");
+                                String dirName = (request.getType() != null ? request.getType().toLowerCase() : "single_file") + "_temp";
+                                deployService.writeFilesToDisk(null, null, dirName, mergedFiles);
+                                allFiles = mergedFiles;
                             } else {
                                 log.warn("合并后无有效文件，跳过持久化");
+                                allFiles = List.of();
                             }
 
-                            // 5. 保存对话记录（存合并后的完整文件，而非原始片段）
+                            // 6. 保存对话记录
                             if (request.getConversationId() != null) {
                                 String userMsg = (request.getElementInfo() != null ? "选中元素: " + request.getElementInfo() + "\n" : "")
                                         + "修改要求: " + request.getModifyPrompt();
                                 messageRepo.save(Message.builder()
                                         .conversationId(request.getConversationId()).role("USER")
                                         .content(userMsg).createdAt(LocalDateTime.now()).build());
-                                // AI 消息存合并后的完整文件（用 [FILE] 标记，前端 parseAiMessage 可正确提取）
+                                // AI 消息存所有文件（用 [FILE] 标记，前端 parseAiMessage 可正确提取）
                                 String aiMsgContent = extractDescription(raw) + "\n\n"
-                                        + buildFileMarkersContent(mergedFiles);
+                                        + buildFileMarkersContent(allFiles);
                                 messageRepo.save(Message.builder()
                                         .conversationId(request.getConversationId()).role("AI")
                                         .content(aiMsgContent).createdAt(LocalDateTime.now()).build());
                             }
 
-                            // 6. 发送完成事件
+                            // 7. 发送完成事件 — 带上所有文件（非仅修改文件）
                             Map<String, Object> done = new HashMap<>();
-                            done.put("files", mergedFiles);
-                            done.put("code", buildConcatenatedCode(mergedFiles));
+                            done.put("files", allFiles);
+                            done.put("code", buildConcatenatedCode(allFiles));
                             done.put("text", extractDescription(raw));
 
                             emitter.send(SseEmitter.event().name("done")
@@ -314,9 +315,11 @@ public class FileModificationService {
             boolean isLongEnough = content.length() > 500;
 
             if (isFullHtml || isFullVue || isFullCss || isLongEnough) {
-                // 看起来是完整文件，直接使用
-                result.add(parsed);
-                log.info("文件 [{}] 识别为完整文件 ({} 字符)，直接使用", path, content.length());
+                // 看起来是完整文件，矫正路径后使用
+                Map<String, String> originalForPath = findOriginalFile(path, originalFiles);
+                String correctPath = originalForPath != null ? originalForPath.get("path") : path;
+                result.add(Map.of("path", correctPath, "language", lang, "content", content));
+                log.info("文件 [{}] 识别为完整文件 ({} 字符)，使用路径 {}", path, content.length(), correctPath);
                 continue;
             }
 
@@ -326,10 +329,11 @@ public class FileModificationService {
             // 查找对应的原始文件
             Map<String, String> original = findOriginalFile(path, originalFiles);
             if (original != null && original.get("content") != null) {
-                String merged = mergeSnippetIntoFile(original.get("content"), content, path);
-                result.add(Map.of("path", path, "language", lang, "content", merged));
-                log.info("片段合并完成: {} (原始{}→合并{} 字符)",
-                        path, original.get("content").length(), merged.length());
+                String originalPath = original.get("path");  // 使用原始文件路径
+                String merged = mergeSnippetIntoFile(original.get("content"), content, originalPath);
+                result.add(Map.of("path", originalPath, "language", detectLang(originalPath), "content", merged));
+                log.info("片段合并完成: {}→{} (原始{}→合并{} 字符)",
+                        path, originalPath, original.get("content").length(), merged.length());
             } else {
                 // 无原始文件可合并 → 包装为最小可运行 HTML
                 log.warn("片段 [{}] 无原始文件可合并，包装为最小 HTML", path);
@@ -462,14 +466,21 @@ public class FileModificationService {
      * 对于 Vue 项目，还会触发 npm rebuild。
      * 注意：此方法由 modifyFiles 内部调用，不能使用 @Transactional（自调用不走代理）。
      */
-    void persistModifiedFiles(Long conversationId, List<Map<String, String>> modifiedFiles, String type) {
-        // 先删除旧的 project_files
+    /** @return 完整文件列表（未修改 + 修改后） */
+    List<Map<String, String>> persistModifiedFiles(Long conversationId, List<Map<String, String>> modifiedFiles, String type) {
+        // 构建修改文件的路径集合
+        Set<String> modifiedPaths = modifiedFiles.stream()
+                .map(f -> f.get("path")).collect(java.util.stream.Collectors.toSet());
+
+        // 1. 删除被修改文件的旧记录
         var oldFiles = projectFileMapper.findByConversationId(conversationId);
         for (var pf : oldFiles) {
-            projectFileMapper.deleteById(pf.getId());
+            if (modifiedPaths.contains(pf.getFilePath())) {
+                projectFileMapper.deleteById(pf.getId());
+            }
         }
 
-        // 写入新的
+        // 2. 插入修改后的文件
         for (Map<String, String> f : modifiedFiles) {
             var pf = new org.example.entity.ProjectFile();
             pf.setConversationId(conversationId);
@@ -479,10 +490,20 @@ public class FileModificationService {
             projectFileMapper.insert(pf);
         }
 
-        // 写入磁盘
-        log.info("开始写入磁盘: convId={}, type={}, 文件数={}", conversationId, type, modifiedFiles.size());
+        // 3. 构建完整文件列表（旧未修改 + 新修改），写入磁盘
+        List<Map<String, String>> allFiles = new ArrayList<>(modifiedFiles);
+        for (var pf : oldFiles) {
+            if (!modifiedPaths.contains(pf.getFilePath())) {
+                allFiles.add(Map.of("path", pf.getFilePath(),
+                        "language", detectLang(pf.getFilePath()),
+                        "content", pf.getContent() != null ? pf.getContent() : ""));
+            }
+        }
+
+        log.info("开始写入磁盘: convId={}, type={}, 修改文件数={}, 总文件数={}",
+                conversationId, type, modifiedFiles.size(), allFiles.size());
         deployService.writeFilesToDisk(conversationId, null,
-                type != null ? type.toLowerCase() : "single_file", modifiedFiles);
+                type != null ? type.toLowerCase() : "single_file", allFiles);
 
         // Vue 项目：触发重新构建
         if ("VUE_PROJECT".equalsIgnoreCase(type)) {
@@ -492,7 +513,9 @@ public class FileModificationService {
             vueProjectBuilder.buildAsync(projectDir);
         }
 
-        log.info("文件修改持久化完成: convId={}, 文件数={}", conversationId, modifiedFiles.size());
+        log.info("文件修改持久化完成: convId={}, 修改文件={}, 总文件={}",
+                conversationId, modifiedFiles.size(), allFiles.size());
+        return allFiles;
     }
 
     // ─── 工具 ───

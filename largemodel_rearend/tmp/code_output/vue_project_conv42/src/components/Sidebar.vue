@@ -40,6 +40,7 @@
   margin: 0;
   font-weight: 600;
   letter-spacing: 2px;
+  color: #ffd700; /* 改为金色 */
 }
 
 nav {

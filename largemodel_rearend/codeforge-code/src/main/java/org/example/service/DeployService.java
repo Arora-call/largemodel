@@ -217,6 +217,8 @@ public class DeployService {
             if (built) {
                 try {
                     copyDir(new File(srcDir.toFile(), "dist"), deployDir);
+                        // 注入元素选取脚本到 HTML 文件
+                        injectPickerIntoDeployDir(deployDir);
                     log.info("Vue项目dist部署完成: {} → {}", srcDir.resolve("dist"),
                             deployDir.getAbsolutePath());
                 } catch (IOException e) {
@@ -282,6 +284,7 @@ public class DeployService {
                     if (built) {
                         try {
                             copyDir(new File(srcDir.toFile(), "dist"), deployDir);
+                            injectPickerIntoDeployDir(deployDir);
                             log.info("Vue项目dist部署: appId={}, deployKey={}", appId, deployKey);
                         } catch (IOException e) {
                             log.error("Vue dist复制失败", e);
@@ -423,6 +426,10 @@ public class DeployService {
             String path = f.get("path");
             String content = f.get("content");
             if (content == null) continue;
+            // HTML 文件注入元素选取脚本（用于跨域 iframe 预览场景）
+            if (path != null && (path.endsWith(".html") || path.endsWith(".htm"))) {
+                content = injectPickerScript(content);
+            }
             File target = new File(deployDir, path);
             target.getParentFile().mkdirs();
             try (FileWriter w = new FileWriter(target)) {
@@ -446,6 +453,99 @@ public class DeployService {
             } else {
                 java.nio.file.Files.copy(child.toPath(), target.toPath(),
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    /** 向 HTML 内容注入元素选取脚本（用于跨域 iframe 预览时支持元素选取） */
+    private String injectPickerScript(String html) {
+        String pickerJs = """
+                <script>
+                (function() {
+                  var active = false, hovered = null, ov = null, style = null;
+                  function enable() {
+                    if (active) return; active = true;
+                    ov = document.createElement("div");
+                    ov.id = "__cf_picker_ov";
+                    ov.style.cssText = "position:fixed;pointer-events:none;border:2px solid #7c8aff;background:rgba(124,138,255,.1);z-index:999999;display:none;border-radius:2px;";
+                    document.head.appendChild(ov);
+                    style = document.createElement("style");
+                    style.id = "__cf_picker_style";
+                    style.textContent = ".__cf_hover { outline: 2px solid #7c8aff !important; outline-offset: 2px; }";
+                    document.head.appendChild(style);
+                  }
+                  function disable() {
+                    active = false;
+                    if (hovered) { hovered.classList.remove("__cf_hover"); hovered = null; }
+                    if (ov) { ov.remove(); ov = null; }
+                    if (style) { style.remove(); style = null; }
+                  }
+                  window.addEventListener("message", function(e) {
+                    if (e.data && e.data.type === "cf-picker-activate") enable();
+                    if (e.data && e.data.type === "cf-picker-deactivate") disable();
+                  });
+                  document.addEventListener("mouseover", function(e) {
+                    if (!active) return;
+                    if (hovered) hovered.classList.remove("__cf_hover");
+                    var el = e.target;
+                    if (!el || el === document.body || el === document.documentElement || el.id === "__cf_picker_ov") return;
+                    el.classList.add("__cf_hover");
+                    hovered = el;
+                    var r = el.getBoundingClientRect();
+                    ov.style.display = "block";
+                    ov.style.top = r.top + "px";
+                    ov.style.left = r.left + "px";
+                    ov.style.width = r.width + "px";
+                    ov.style.height = r.height + "px";
+                  }, true);
+                  document.addEventListener("mouseout", function(e) {
+                    if (!active || hovered !== e.target) return;
+                    if (hovered) { hovered.classList.remove("__cf_hover"); hovered = null; }
+                    ov.style.display = "none";
+                  }, true);
+                  document.addEventListener("click", function(e) {
+                    if (!active) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var el = e.target;
+                    if (!el || el.id === "__cf_picker_ov") return;
+                    el.classList.remove("__cf_hover"); hovered = null;
+                    var tag = el.tagName.toLowerCase();
+                    var id = el.id || "";
+                    var rawCls = el.className && typeof el.className === "string" ? String(el.className).trim() : "";
+                    var classes = rawCls.replace(/\\b__cf_hover\\b/g, "").trim();
+                    var text = (el.textContent || "").replace(/\\s+/g, " ").trim().substring(0, 60);
+                    var selector = tag;
+                    if (id) selector += "#" + id;
+                    else if (classes) selector += "." + classes.split(/\\s+/).filter(Boolean).join(".");
+                    window.parent.postMessage({ type: "cf-pick-element", data: { tag: tag, id: id, classes: classes, text: text, selector: selector, filePath: "index.html" } }, "*");
+                  }, true);
+                })();
+                </script>""";
+
+        if (html.contains("</body>")) {
+            return html.replace("</body>", pickerJs + "\n</body>");
+        }
+        return html + "\n" + pickerJs;
+    }
+
+    /** 遍历部署目录，对所有 HTML 文件注入元素选取脚本 */
+    private void injectPickerIntoDeployDir(File deployDir) {
+        if (!deployDir.exists() || !deployDir.isDirectory()) return;
+        File[] files = deployDir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                injectPickerIntoDeployDir(file);
+            } else if (file.getName().endsWith(".html") || file.getName().endsWith(".htm")) {
+                try {
+                    String content = Files.readString(file.toPath());
+                    String injected = injectPickerScript(content);
+                    Files.writeString(file.toPath(), injected);
+                    log.info("选取脚本注入: {}", file.getAbsolutePath());
+                } catch (IOException e) {
+                    log.warn("选取脚本注入失败: {}", file.getAbsolutePath(), e);
+                }
             }
         }
     }

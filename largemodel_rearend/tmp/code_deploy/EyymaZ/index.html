@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>天气预报</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <!-- 头部：标题 + 搜索 -->
+        <header class="header">
+            <h1 class="title">🌤 天气预报</h1>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="输入城市名，如 北京" autocomplete="off" />
+                <button id="searchBtn">搜索</button>
+            </div>
+        </header>
+
+        <!-- 主天气卡片 -->
+        <main class="weather-card" id="weatherCard">
+            <div class="weather-header">
+                <div class="city-info">
+                    <h2 class="city-name" id="cityName">北京</h2>
+                    <p class="update-time" id="updateTime">--:--</p>
+                </div>
+                <div class="weather-icon-wrap">
+                    <span class="weather-icon" id="weatherIcon">☀️</span>
+                </div>
+            </div>
+            <div class="weather-temp-row">
+                <span class="temperature" id="temperature">--°C</span>
+                <span class="weather-desc" id="weatherDesc">--</span>
+            </div>
+            <div class="weather-details">
+                <div class="detail-item">
+                    <span class="detail-label">体感温度</span>
+                    <span class="detail-value" id="feelsLike">--°C</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">湿度</span>
+                    <span class="detail-value" id="humidity">--%</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">风速</span>
+                    <span class="detail-value" id="windSpeed">-- m/s</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">气压</span>
+                    <span class="detail-value" id="pressure">-- hPa</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- 未来预报 -->
+        <section class="forecast-section">
+            <h3 class="section-title">📅 未来三天预报</h3>
+            <div class="forecast-list" id="forecastList">
+                <!-- 由 JS 动态生成 -->
+            </div>
+        </section>
+
+        <!-- 提示信息 -->
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script src="script.js"></script>
+<script>
+(function() {
+  var active = false, hovered = null, ov = null, style = null;
+  function enable() {
+    if (active) return; active = true;
+    ov = document.createElement("div");
+    ov.id = "__cf_picker_ov";
+    ov.style.cssText = "position:fixed;pointer-events:none;border:2px solid #7c8aff;background:rgba(124,138,255,.1);z-index:999999;display:none;border-radius:2px;";
+    document.head.appendChild(ov);
+    style = document.createElement("style");
+    style.id = "__cf_picker_style";
+    style.textContent = ".__cf_hover { outline: 2px solid #7c8aff !important; outline-offset: 2px; }";
+    document.head.appendChild(style);
+  }
+  function disable() {
+    active = false;
+    if (hovered) { hovered.classList.remove("__cf_hover"); hovered = null; }
+    if (ov) { ov.remove(); ov = null; }
+    if (style) { style.remove(); style = null; }
+  }
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "cf-picker-activate") enable();
+    if (e.data && e.data.type === "cf-picker-deactivate") disable();
+  });
+  document.addEventListener("mouseover", function(e) {
+    if (!active) return;
+    if (hovered) hovered.classList.remove("__cf_hover");
+    var el = e.target;
+    if (!el || el === document.body || el === document.documentElement || el.id === "__cf_picker_ov") return;
+    el.classList.add("__cf_hover");
+    hovered = el;
+    var r = el.getBoundingClientRect();
+    ov.style.display = "block";
+    ov.style.top = r.top + "px";
+    ov.style.left = r.left + "px";
+    ov.style.width = r.width + "px";
+    ov.style.height = r.height + "px";
+  }, true);
+  document.addEventListener("mouseout", function(e) {
+    if (!active || hovered !== e.target) return;
+    if (hovered) { hovered.classList.remove("__cf_hover"); hovered = null; }
+    ov.style.display = "none";
+  }, true);
+  document.addEventListener("click", function(e) {
+    if (!active) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var el = e.target;
+    if (!el || el.id === "__cf_picker_ov") return;
+    el.classList.remove("__cf_hover"); hovered = null;
+    var tag = el.tagName.toLowerCase();
+    var id = el.id || "";
+    var rawCls = el.className && typeof el.className === "string" ? String(el.className).trim() : "";
+    var classes = rawCls.replace(/\b__cf_hover\b/g, "").trim();
+    var text = (el.textContent || "").replace(/\s+/g, " ").trim().substring(0, 60);
+    var selector = tag;
+    if (id) selector += "#" + id;
+    else if (classes) selector += "." + classes.split(/\s+/).filter(Boolean).join(".");
+    window.parent.postMessage({ type: "cf-pick-element", data: { tag: tag, id: id, classes: classes, text: text, selector: selector, filePath: "index.html" } }, "*");
+  }, true);
+})();
+</script>
+</body>
+</html>

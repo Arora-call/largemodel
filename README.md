@@ -1,6 +1,6 @@
 # CodeForge（代码锻造）— 大模型代码应用生成平台
 
-> 作者：yx | 更新时间：2026-06-25（Vue 项目 npm 构建 + Nginx dist 部署）
+> 作者：yx | 更新时间：2026-06-25（可视化元素编辑 + 知识库 RAG + 文件级修改 + 管理端应用管理）
 
 ---
 
@@ -42,6 +42,17 @@
 - **AI 驱动**：LangChain4j + 多模型动态切换，SSE 流式输出
 - **安全防护**：AES-256-GCM 加密存储 API Key，接口限流防滥用
 - **容器化部署**：Docker Compose 一键启动 10 个服务
+
+### 2026-06-25 更新（第五批）
+
+- 🎯 **可视化元素编辑**：预览界面点击元素 → 识别标签/类名/CSS选择器 → AI 精准修改指定文件。支持单文件/多文件/Vue项目（跨域 iframe postMessage 通信 + 部署时注入选取脚本）
+- 📝 **文件级修改**：`FileModificationService` — AI 只输出修改片段，后端自动合并回完整原始文件，保留未修改文件。修改后预览自动刷新（`:key` 强制 iframe 重建）
+- 📚 **知识库 RAG 集成**：`KnowledgeContextService` — 用户可手动选择知识库文档或开启自动检索，生成时将相关内容注入 AI Prompt。`GenerateCodeRequest` 新增 `knowledgeDocIds` + `autoSearchKnowledge` 字段
+- 🛡️ **管理端应用管理**：侧栏新增「应用管理」（仅管理员可见），查看/编辑/删除所有用户应用
+- 📌 **应用置顶/精选**：修改 `applications.priority`（0-默认/99-精选/999-置顶），卡片按优先级排序
+- 📊 **监控用户隔离**：`api_call_logs` 修复 `user_id` 记录，新增 `ByUser` 查询方法。`/api/monitor/*` 端点用户只看自己数据，管理员通过 `/api/admin/stats/*` 看全局
+- 📋 **系统日志增强**：AOP 覆盖注册/登录/找回密码/应用管理操作，修复 `LogAspect` 未加载问题
+- 🐛 **关键修复**：对话删除级联清理、模型配置端点权限粒化、单文件修改后刷新加载失败（JSON 解析 CSS 花括号报错）、多文件修改后文件丢失（合并保留未修改文件）、Admin/Auth 模块 `scanBasePackages` 过窄
 
 ### 2026-06-25 更新（第四批）
 
@@ -191,20 +202,20 @@
 | 模块 | 状态 | 功能点 |
 |------|------|--------|
 | **用户体系** | ✅ | 注册/登录、JWT 认证、角色权限、找回密码、头像上传、账号切换 |
-| **AI 工作台** | ✅ | 统一三栏布局、三种生成模式（单文件/多文件/Vue3）、流式输出、文件树、Nginx 部署预览 |
+| **AI 工作台** | ✅ | 统一三栏布局、三种生成模式（单文件/多文件/Vue3）、流式输出、文件树、Nginx 部署预览、可视化元素选取编辑、知识库 RAG 注入 |
 | **API Key 管理** | ✅ | AES-256 加密存储、多模型动态切换、在线测试连接 |
 | **工程项目** | ✅ | 多文件生成、文件树、Sandpack 即时预览、npm 构建 Vue 项目、dist/ Nginx 部署、ZIP 下载 |
 | **AI 代码审查** | ✅ | SSE 流式审查、4 维度评分（安全/性能/规范/最佳实践） |
 | **对话导出** | ✅ | 一键导出 Markdown、单对话删除、级联清理 |
 | **接口限流** | ✅ | AI 5 QPS、登录 20 QPS，超限返回 429 |
-| **应用管理** | ✅ | CRUD、重命名、类型筛选、封面图、下载、卡片部署、点击跳转Workspace |
+| **应用管理** | ✅ | CRUD、重命名、类型筛选、封面图、下载、卡片部署、置顶/精选、点击跳转Workspace、管理员全局管理 |
 | **Nginx 部署** | ✅ | deployKey 机制、共享卷、SSE 直通、SPA 路由、Gzip 压缩 |
-| **知识库** | ✅ | 文档上传（PDF/TXT/MD）、全文搜索、语义搜索、集合管理、下载 |
+| **知识库** | ✅ | 文档上传（PDF/TXT/MD）、全文搜索、语义搜索、集合管理、下载、RAG 注入 AI Prompt |
 | **Agent 工作流** | ✅ | 5 Agent 链式编排（analyzer→architect→coder→tester→reviewer）、SSE 实时进度、Markdown 导出 |
 | **仪表盘** | ✅ | 项目数 + 对话数 + 角色 + 用户数（管理员） |
 | **管理后台** | ✅ | 用户管理、模型配置（含测试连接）、系统日志 |
 | **对话管理** | ✅ | MySQL 持久化、类型隔离 (NATIVE/ENGINEERING) |
-| **监控大盘** | ✅ | ECharts 实时图表、调用量/Token/耗时/模型占比、TTFB 响应时间 |
+| **监控大盘** | ✅ | ECharts 实时图表、调用量/Token/耗时/模型占比、用户数据隔离（普通用户/管理员） |
 
 ---
 
@@ -239,7 +250,7 @@ largemodel_rearend/
 | 前缀 | → 服务 | 端口 |
 |------|--------|------|
 | `/api/auth/**`, `/api/user/**` | auth-service | 8081 |
-| `/api/ai/**`, `/api/projects/**`, `/api/applications/**`, `/api/conversations/**`, `/api/dashboard/**`, `/api/codegen/**` | code-service | 8082 |
+| `/api/ai/**`, `/api/projects/**`, `/api/applications/**`, `/api/conversations/**`, `/api/dashboard/**`, `/api/codegen/**`, `/api/monitor/**` | code-service | 8082 |
 | `/api/knowledge/**` | knowledge-service | 8083 |
 | `/api/agents/**` | agent-service | 8084 |
 | `/api/admin/**` | admin-service | 8085 |
@@ -310,6 +321,7 @@ largemodel_rearend/
 |------|------|------|
 | POST | /api/applications | 保存应用（仅元信息 + conversationId，不存代码） |
 | PUT | /api/applications/{id} | 更新名称/描述/封面 |
+| PUT | /api/applications/{id}/priority | 设置优先级（0-默认/99-精选/999-置顶） |
 | GET | /api/applications | 分页 + 关键词 + 类型筛选（SINGLE_FILE/MULTI_FILE/VUE_PROJECT） |
 | GET | /api/applications/{id} | 详情（含 conversationId / deployKey） |
 | DELETE | /api/applications/{id} | 删除 |
@@ -357,11 +369,23 @@ largemodel_rearend/
 | DELETE | /api/admin/models/{id} | 删除模型 |
 | POST | /api/admin/models/{id}/test | 测试连接 |
 | GET | /api/admin/models/enabled | 已启用列表（前端用） |
+| GET | /api/admin/applications | 所有用户应用列表 |
+| PUT | /api/admin/applications/{id} | 编辑任意应用 |
+| DELETE | /api/admin/applications/{id} | 删除任意应用 |
+| GET | /api/admin/logs | 系统操作日志 |
+| GET | /api/admin/stats/overview | 全局监控概览 |
+| GET | /api/admin/stats/calls | 全局调用趋势 |
+| GET | /api/admin/stats/tokens | 全局Token趋势 |
+| GET | /api/admin/stats/models | 全局模型分布 |
 
 ### 6.9 其他
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| GET | /api/monitor/overview | 用户监控概览（只看自己数据） |
+| GET | /api/monitor/calls | 用户调用趋势 |
+| GET | /api/monitor/tokens | 用户Token趋势 |
+| GET | /api/monitor/models | 用户模型分布 |
 | GET | /api/health | 健康检查 (公开) |
 | GET | /api/conversations | 对话列表 (`?type=NATIVE\|ENGINEERING`) |
 | GET | /api/conversations/{id}/messages | 对话消息 |
@@ -431,6 +455,7 @@ largemodel_frontend/
 | `/admin/users` | 用户管理 | admin |
 | `/admin/models` | 模型配置 | admin |
 | `/admin/logs` | 系统日志 | admin |
+| `/admin/applications` | 应用管理 | admin |
 
 ---
 
@@ -604,8 +629,9 @@ frontend:
 ### 11.1 本地开发
 
 ```bash
-# 前置：MySQL 8 + Redis 7 + Nacos 3.1.2 已启动
+# 前置：MySQL 8 + Redis 7 + Nacos 3.1.2 已启动 + Nginx 已启动
 #   Nacos 启动：bin/startup.cmd -m standalone  （:8848，用户/密码: nacos/123456）
+#   Nginx 启动：./nginx -c D:\Idea-program-file\largemodel\nginx-local.conf
 
 # 1. 重建数据库
 #    MySQL 中执行: SOURCE .../codeforge-code/src/main/resources/db/init.sql;
@@ -618,7 +644,7 @@ mvn compile -q
 # 3. 启动服务（6 个终端，按依赖顺序）
 mvn spring-boot:run -pl codeforge-auth        # :8081
 mvn spring-boot:run -pl codeforge-code        # :8082
-mvn spring-boot:run -pl codeforge-knowledge   # :8083（可选）
+mvn spring-boot:run -pl codeforge-knowledge   # :8083
 mvn spring-boot:run -pl codeforge-agent       # :8084
 mvn spring-boot:run -pl codeforge-admin       # :8085
 mvn spring-boot:run -pl codeforge-gateway     # :8080（最后启动）
@@ -717,7 +743,9 @@ mvn test -pl codeforge-auth -am
 | `VueProjectStrategy.java` | code | Vue3 项目模式（JSON + [FILE] 标记） |
 | `CodeGenJsonParser.java` | code | JSON 括号深度追踪提取 |
 | `VueProjectBuilder.java` | code | Vue 项目构建器 — npm install + build + dist/ 产出 |
-| `DeployService.java` | code | 部署服务 — deployKey 生成 + dist 复制 + 磁盘清理 |
+| `DeployService.java` | code | 部署服务 — deployKey 生成 + dist 复制 + 选取脚本注入 + 磁盘清理 |
+| `FileModificationService.java` | code | 文件级修改 — AI 片段合并回完整文件 + 保留未修改文件 |
+| `KnowledgeContextService.java` | code | 知识库 RAG — 文档检索 + Prompt 注入 |
 | `prompt/agent-*.txt` | agent | Agent 角色提示词（analyzer/architect/coder/tester/reviewer） |
 | `AiCodeGenService.java` | code | SSE 流式核心（旧，兼容保留） |
 | `application.yml` | 各服务模块 | 业务配置 + Nacos 注册/配置地址 |
@@ -726,9 +754,7 @@ mvn test -pl codeforge-auth -am
 
 | 文件 | 位置 | 职责 |
 |------|------|------|
-| `docker-compose.yml` | 项目根目录 | 10 服务编排（MySQL / Redis / 6 后端 / 1 前端） |
-| `docker-build.sh` | 项目根目录 | 全容器化一键构建（docker://maven + docker://node） |
-| `.env` | 项目根目录（自建） | 环境变量（`OPENAI_API_KEY`、端口、密码） |
+| `docker-compose.yml` | `largemodel_rearend/` | 8 服务编排（MySQL / Redis / 6 后端），一键启动 |
 | `Dockerfile` | `largemodel_rearend/` | 通用 Spring Boot 镜像（temurin:21-jre-alpine），`ARG MODULE` 区分服务 |
 | `Dockerfile` | `largemodel_frontend/` | 多阶段构建（Node:22-alpine 编译 → Nginx:1.25-alpine 运行） |
 | `nginx.conf` | `largemodel_frontend/` | SPA 路由 + `/api/` 反代 Gateway + SSE 直通（`proxy_buffering off`） |
@@ -739,56 +765,3 @@ mvn test -pl codeforge-auth -am
 > 部署步骤详见 **[Deployment.md](Deployment.md)**。
 
 ---
-
-## 十四、后续规划
-
-### 🔴 P0 — 高优先级
-
-| 功能 | 状态 | 说明 |
-|------|------|------|
-| 微服务真正拆分 | ✅ | Auth/Admin 独立，Gateway 7 路由 |
-| **AI 工作台重构** | ✅ | Executor + Strategy + Template Method，三种生成模式 |
-| **Nginx 部署预览** | ✅ | deployKey 机制、共享卷、SSE 直通 |
-| **Prompt 外部化** | ✅ | 资源文件加载，JSON 结构化输出 |
-| Sentinel 流控 | ✅ | Gateway 全局过滤器 |
-| API Key 管理 | ✅ | AES-256 加密 + 动态切换 + 测试连接 |
-| 对话导出 | ✅ | 导出 Markdown + 单对话删除 |
-| **Nacos 注册配置中心** | ✅ | 6 服务注册发现 + 5 服务配置管理 |
-
-### 🟡 P1 — 中优先级
-
-| 功能 | 状态 | 说明 |
-|------|------|------|
-| 多模型支持 | ✅ | DeepSeek/GLM/Qwen/GPT 切换 |
-| **应用 Nginx 部署** | ✅ | 卡片一键部署 + 内联 URL + iframe 预览 |
-| **知识库** | ✅ | 文档上传/搜索/集合管理/PDF解析 |
-| **Agent 工作流** | ✅ | 5 Agent 链式编排/SSE 执行/Markdown 导出 |
-| RAG 向量检索 | ⬜ | 接入 Milvus/Chroma |
-| 代码审查自动化 | ⬜ | 保存审查历史 + 报告导出 |
-| 单元测试生成 | ⬜ | AI 自动生成 JUnit/Vitest |
-| 国际化 (i18n) | ⬜ | vue-i18n 中英文 |
-
-### 🟢 P2 — 低优先级
-
-| 功能 | 说明 |
-|------|------|
-| Prometheus + Grafana | 监控指标采集 + 可视化 |
-| CI/CD 流水线 | GitHub Actions 自动构建 |
-| 协作功能 | 项目分享 + 团队空间 |
-| 移动端适配 | PWA + 响应式 |
-| WebSocket 推送 | 对话列表实时更新 |
-| 暗色/浅色主题切换 | CSS 变量扩展 |
-
-### 🔵 技术债
-
-| 项目 | 说明 |
-|------|------|
-| JPA → MyBatis-Plus 完全迁移 | 移除 JPA 依赖 |
-| JWT 黑名单 | Redis 存储已注销 Token |
-| 接口幂等性 | 关键写操作防重复提交 |
-| 日志收集 | ELK/Loki 集中管理 |
-| 压力测试 | JMeter 负载测试 |
-
----
-
-> **相关文档**：`CodeForge-项目计划.md` — 完整项目计划与功能规划

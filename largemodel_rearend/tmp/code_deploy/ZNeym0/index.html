@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>天气预报</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>🌤️ 天气预报</h1>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="输入城市名称..." value="北京">
+        <button id="searchBtn">搜索</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- 当前天气 -->
+      <section id="currentWeather" class="current-weather">
+        <div class="weather-main">
+          <div class="location">
+            <h2 id="cityName">北京</h2>
+            <p id="dateTime" class="date-time">加载中...</p>
+          </div>
+          <div class="temperature-section">
+            <span id="weatherIcon" class="weather-icon">☀️</span>
+            <span id="currentTemp" class="temp">25°</span>
+            <span id="weatherDesc" class="weather-desc">晴</span>
+          </div>
+          <div class="extra-info">
+            <div class="info-item">
+              <span class="label">体感温度</span>
+              <span id="feelsLike" class="value">24°</span>
+            </div>
+            <div class="info-item">
+              <span class="label">湿度</span>
+              <span id="humidity" class="value">60%</span>
+            </div>
+            <div class="info-item">
+              <span class="label">风速</span>
+              <span id="windSpeed" class="value">3级</span>
+            </div>
+            <div class="info-item">
+              <span class="label">空气质量</span>
+              <span id="aqi" class="value">良</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 五日预报 -->
+      <section class="forecast">
+        <h3>📅 未来五天预报</h3>
+        <div id="forecastContainer" class="forecast-grid">
+          <!-- 动态生成 -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; 2025 天气预报 - 数据模拟演示</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+<script>
+(function() {
+  var active = false, hovered = null, ov = null, style = null;
+  function enable() {
+    if (active) return; active = true;
+    ov = document.createElement("div");
+    ov.id = "__cf_picker_ov";
+    ov.style.cssText = "position:fixed;pointer-events:none;border:2px solid #7c8aff;background:rgba(124,138,255,.1);z-index:999999;display:none;border-radius:2px;";
+    document.head.appendChild(ov);
+    style = document.createElement("style");
+    style.id = "__cf_picker_style";
+    style.textContent = ".__cf_hover { outline: 2px solid #7c8aff !important; outline-offset: 2px; }";
+    document.head.appendChild(style);
+  }
+  function disable() {
+    active = false;
+    if (hovered) { hovered.classList.remove("__cf_hover"); hovered = null; }
+    if (ov) { ov.remove(); ov = null; }
+    if (style) { style.remove(); style = null; }
+  }
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "cf-picker-activate") enable();
+    if (e.data && e.data.type === "cf-picker-deactivate") disable();
+  });
+  document.addEventListener("mouseover", function(e) {
+    if (!active) return;
+    if (hovered) hovered.classList.remove("__cf_hover");
+    var el = e.target;
+    if (!el || el === document.body || el === document.documentElement || el.id === "__cf_picker_ov") return;
+    el.classList.add("__cf_hover");
+    hovered = el;
+    var r = el.getBoundingClientRect();
+    ov.style.display = "block";
+    ov.style.top = r.top + "px";
+    ov.style.left = r.left + "px";
+    ov.style.width = r.width + "px";
+    ov.style.height = r.height + "px";
+  }, true);
+  document.addEventListener("mouseout", function(e) {
+    if (!active || hovered !== e.target) return;
+    if (hovered) { hovered.classList.remove("__cf_hover"); hovered = null; }
+    ov.style.display = "none";
+  }, true);
+  document.addEventListener("click", function(e) {
+    if (!active) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var el = e.target;
+    if (!el || el.id === "__cf_picker_ov") return;
+    el.classList.remove("__cf_hover"); hovered = null;
+    var tag = el.tagName.toLowerCase();
+    var id = el.id || "";
+    var rawCls = el.className && typeof el.className === "string" ? String(el.className).trim() : "";
+    var classes = rawCls.replace(/\b__cf_hover\b/g, "").trim();
+    var text = (el.textContent || "").replace(/\s+/g, " ").trim().substring(0, 60);
+    var selector = tag;
+    if (id) selector += "#" + id;
+    else if (classes) selector += "." + classes.split(/\s+/).filter(Boolean).join(".");
+    window.parent.postMessage({ type: "cf-pick-element", data: { tag: tag, id: id, classes: classes, text: text, selector: selector, filePath: "index.html" } }, "*");
+  }, true);
+})();
+</script>
+</body>
+</html>

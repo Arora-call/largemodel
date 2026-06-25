@@ -202,9 +202,9 @@
         <!-- 已选取的元素气泡 -->
         <div v-if="pickedElements.length" class="picked-elements-bar">
           <span class="picked-label">已选元素:</span>
-          <span v-for="el in pickedElements" :key="el.selector" class="picked-tag">
-            <code>{{ el.selector }}</code>
-            <button class="picked-tag-close" @click="removePickedElement(el.selector)" title="取消选中">×</button>
+          <span v-for="(el, i) in pickedElements" :key="el.filePath + '|' + el.selector + '|' + i" class="picked-tag">
+            <code>{{ el.filePath ? el.filePath.split('/').pop() + ' → ' : '' }}{{ el.selector }}</code>
+            <button class="picked-tag-close" @click="removePickedElement(i)" title="取消选中">×</button>
           </span>
         </div>
 
@@ -229,7 +229,10 @@
           <!-- Vue3 项目：Sandpack（即时预览 / Nginx 部署前的 fallback） -->
           <SandboxPreview v-else-if="currentMode === 'VUE_PROJECT'"
             ref="sandboxRef" :key="sandpackKey"
-            :files="previewFilesMap" @error="previewError = $event" />
+            :files="previewFilesMap"
+            :editMode="pickerActive"
+            @element-selected="handleSandboxElementPicked"
+            @error="previewError = $event" />
         </div>
         <div v-if="deployedUrl" class="deploy-url-bar">
           <span class="deploy-key">{{ deployedUrl }}</span>
@@ -344,9 +347,22 @@ function togglePicker() {
   pickerActive.value = !pickerActive.value
   if (pickerActive.value) {
     pickedElements.value = []
+    // srcdoc iframe: 直接注入脚本
     injectPickerScript()
+    // Nginx iframe / Sandbox: 发送 postMessage 激活内置选取器
+    sendPickerMessage('cf-picker-activate')
   } else {
     removePickerFromIframe()
+    sendPickerMessage('cf-picker-deactivate')
+  }
+}
+
+/** 向所有预览 iframe 发送激活/停用消息 */
+function sendPickerMessage(type) {
+  // Nginx deployed iframe
+  const iframe = htmlPreview.value
+  if (iframe && iframe.contentWindow) {
+    try { iframe.contentWindow.postMessage({ type }, '*') } catch (e) { /* cross-origin, message may still work */ }
   }
 }
 
@@ -420,7 +436,7 @@ function injectPickerScript() {
           else if (classes) selector = tag + '.' + classes.split(/\\s+/).join('.')
           window.parent.postMessage({
             type: 'cf-pick-element',
-            data: { tag: tag, id: id, classes: classes, text: text, selector: selector }
+            data: { tag: tag, id: id, classes: classes, text: text, selector: selector, filePath: 'index.html' }
           }, '*')
         }, true)
       })()
@@ -450,25 +466,49 @@ function removePickerFromIframe() {
 
 /** 从预览 iframe 收到消息时处理 */
 function handlePreviewMessage(e) {
+  // 自己的 injectPickerScript 发出的消息
   if (e.data?.type === 'cf-pick-element' && e.data.data) {
     const d = e.data.data
-    // 去重：相同 selector 不重复添加
     if (!pickedElements.value.find(p => p.selector === d.selector)) {
       pickedElements.value.push(d)
     }
   }
+  // SandboxPreview CDN 模式发出的消息
+  if (e.data?.type === 'element-selected' && e.data.payload) {
+    handleSandboxElementPicked(e.data.payload)
+  }
+}
+
+/** 处理 SandboxPreview（Vue CDN 模式）的元素选取 */
+function handleSandboxElementPicked(payload) {
+  const tag = payload.tag || 'div'
+  const id = payload.id || ''
+  const cls = (payload.cls || '').toString().trim()
+  // 构建选择器
+  let selector = tag
+  if (id) selector = '#' + id
+  else if (cls) selector = tag + '.' + cls.split(/\s+/).filter(Boolean).join('.')
+  // 压缩文本
+  const text = (payload.text || '').replace(/\s+/g, ' ').trim().substring(0, 60)
+  const info = { tag, id, classes: cls, text, selector }
+  // 文件路径：Vue 项目的 CDN 模式下所有组件合并，默认 App.vue
+  const appVue = Object.keys(previewFilesMap.value).find(p => /App\.vue$/i.test(p))
+  info.filePath = appVue || 'src/App.vue'
+  if (!pickedElements.value.find(p => p.selector === selector)) {
+    pickedElements.value.push(info)
+  }
 }
 
 /** 移除单个已选元素 */
-function removePickedElement(selector) {
-  pickedElements.value = pickedElements.value.filter(p => p.selector !== selector)
+function removePickedElement(index) {
+  pickedElements.value.splice(index, 1)
 }
 
 /** 构建元素信息文本（用于 AI prompt） */
 function buildPickedElementsInfo() {
   if (!pickedElements.value.length) return ''
   return pickedElements.value.map((el, i) =>
-    `[元素${i + 1}] <${el.tag}${el.id ? ' id="' + el.id + '"' : ''}${el.classes ? ' class="' + el.classes + '"' : ''}> 文本: "${el.text}" (选择器: ${el.selector})`
+    `[元素${i + 1}] 文件: ${el.filePath || 'index.html'} | <${el.tag}${el.id ? ' id="' + el.id + '"' : ''}${el.classes ? ' class="' + el.classes + '"' : ''}> 文本: "${el.text}" (选择器: ${el.selector})`
   ).join('\n')
 }
 
@@ -775,17 +815,12 @@ function handleModifyDone(raw) {
         showPreview.value = true
         previewFileName.value = files.find(f => f.path === 'package.json')?.path || 'Vue 项目'
         previewVersion.value++
-        // 重新部署（部署完成后 iframe 会通过 key 重建）
         if (currentConv.value?.id) {
-          autoDeployMultiFile(currentConv.value.id).then(() => {
-            previewVersion.value++
-          })
+          autoDeployMultiFile(currentConv.value.id).then(() => { previewVersion.value++ })
         }
       } else if (currentMode.value === 'MULTI_FILE') {
         if (currentConv.value?.id) {
-          autoDeployMultiFile(currentConv.value.id).then(() => {
-            previewVersion.value++
-          })
+          autoDeployMultiFile(currentConv.value.id).then(() => { previewVersion.value++ })
         }
       } else {
         const mainFile = findMainFile(files)
@@ -794,11 +829,10 @@ function handleModifyDone(raw) {
       }
     }
 
-    // 清理选取状态
     removePickerFromIframe()
     pickedElements.value = []
     pickerActive.value = false
-    previewVersion.value++  // 强制 iframe 重建
+    previewVersion.value++
     ElMessage.success('修改完成')
     nextTick(() => scrollToBottom())
   } catch (e) {
