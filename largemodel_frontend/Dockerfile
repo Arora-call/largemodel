@@ -11,5 +11,10 @@ RUN npm run build
 FROM nginx:1.25-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# 创建自定义 entrypoint，彻底绕过官方 /docker-entrypoint.sh
+RUN printf '#!/bin/sh\nexec nginx -g "daemon off;"\n' > /custom-entrypoint.sh \
+    && chmod +x /custom-entrypoint.sh
+
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/custom-entrypoint.sh"]

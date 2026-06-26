@@ -1,5 +1,5 @@
 # ============================================
-# CodeForge — 完整微服务编排（Docker Compose 一键部署）
+# CodeForge — Docker Compose 一键部署
 # 启动: docker compose up -d
 # 停止: docker compose down
 # ============================================
@@ -14,8 +14,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-largemodel}
-      MYSQL_CHARSET: utf8mb4
-      MYSQL_COLLATION: utf8mb4_unicode_ci
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
@@ -33,24 +31,6 @@ services:
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  nacos:
-    image: nacos/nacos-server:v3.1.2
-    container_name: codeforge-nacos
-    restart: unless-stopped
-    environment:
-      MODE: standalone
-    ports:
-      - "8848:8848"    # gRPC（服务注册发现，通信端口）
-      - "9848:9848"    # gRPC internal
-      - "8888:8888"    # Web 控制台端口（匹配你的 application.properties）
-    volumes:
-      - nacos_data:/home/nacos/data
 
   # ========== 微服务 ==========
   gateway:
@@ -65,14 +45,12 @@ services:
     environment:
       SERVER_PORT: "8080"
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx256m"
     depends_on:
-      nacos:
-        condition: service_started
       mysql:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   code-service:
@@ -90,19 +68,15 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
       SPRING_DATA_REDIS_HOST: redis
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
       JAVA_TOOL_OPTIONS: "-Xmx512m"
     volumes:
-      - uploads_data:/app/uploads
       - deploy_data:/app/tmp/code_deploy
     depends_on:
-      nacos:
-        condition: service_started
       mysql:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   knowledge-service:
@@ -119,12 +93,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx256m"
     depends_on:
-      nacos:
-        condition: service_started
       mysql:
         condition: service_healthy
 
@@ -142,12 +116,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx512m"
     depends_on:
-      nacos:
-        condition: service_started
       mysql:
         condition: service_healthy
 
@@ -165,11 +139,11 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx256m"
     depends_on:
-      nacos:
-        condition: service_started
       mysql:
         condition: service_healthy
 
@@ -187,11 +161,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/largemodel?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx256m"
     depends_on:
-      nacos:
-        condition: service_started
       mysql:
         condition: service_healthy
 
@@ -210,6 +185,4 @@ services:
 
 volumes:
   mysql_data:
-  uploads_data:
-  nacos_data:
   deploy_data:
