@@ -11,6 +11,7 @@ package org.example.config;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,11 @@ import java.util.Map;
 public class JwtUtil {
 
     private final SecretKey secretKey;
+    /**
+     * -- GETTER --
+     *  获取过期时间
+     */
+    @Getter
     private final long expiration;
 
     public JwtUtil(@Value("${jwt.secret}") String secret,
@@ -92,10 +98,4 @@ public class JwtUtil {
         }
     }
 
-    /**
-     * 获取过期时间
-     */
-    public long getExpiration() {
-        return expiration;
-    }
 }

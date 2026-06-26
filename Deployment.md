@@ -190,6 +190,7 @@ vim .env
 ```bash
 cd /home/$USER/codeforge
 bash docker-build.sh
+安装 nacos-server-3.1.2
 ```
 
 脚本自动完成三个阶段：
