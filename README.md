@@ -658,10 +658,19 @@ npm install && npm run dev
 ### 11.2 Docker 部署
 
 ```bash
-cd D:\Idea-program-file\largemodel
-# 编辑 .env 设置 OPENAI_API_KEY
-docker compose up -d --build
-# → http://localhost
+# 1. 克隆项目
+git clone ...
+
+# 2. 确认 .env 中有 OPENAI_API_KEY
+echo "OPENAI_API_KEY=你的密钥" >> .env
+
+# 3. 一键构建启动
+bash docker-build.sh
+
+# 4. 查看虚拟机ip
+ip addr show | grep "inet " | grep -v 127.0.0.1
+inet 192.168.x.x 或 inet 10.x.x.x 就是虚拟机的 IP
+http://那个IP 即可
 ```
 
 > 详细部署步骤（Ubuntu/VMware 环境、分步构建、故障排查等）见 **[Deployment.md](Deployment.md)**。
