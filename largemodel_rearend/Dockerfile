@@ -9,9 +9,6 @@ FROM eclipse-temurin:21-jre-alpine
 ARG MODULE=codeforge-code
 WORKDIR /app
 
-# 安装 curl 用于健康检查
-RUN apk add --no-cache curl
-
 # 复制已构建的 JAR
 COPY ${MODULE}/target/${MODULE}-*.jar app.jar
 
@@ -23,8 +20,5 @@ EXPOSE 8080 8081 8082 8083 8084 8085
 
 # JVM 参数可通过环境变量覆盖
 ENV JAVA_OPTS="-XX:+UseZGC -Xmx512m"
-
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -f http://localhost:${SERVER_PORT:-8080}/api/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
